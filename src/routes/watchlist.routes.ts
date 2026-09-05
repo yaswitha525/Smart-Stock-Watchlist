@@ -8,6 +8,7 @@ import {
   addStockToWatchlist,
   removeStockFromWatchlist,
   recordWatchlistVisit,
+  getWatchlistDelta,
 } from '../controllers/watchlist.controller.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { validateRequest } from '../middleware/validate-request.js';
@@ -18,6 +19,7 @@ import {
   watchlistParamsSchema,
   watchlistItemParamsSchema,
 } from '../types/watchlist.js';
+import { watchlistDeltaQuerySchema } from '../types/delta.js';
 
 const router = Router();
 
@@ -41,6 +43,17 @@ router.get('/', getWatchlists);
  * GET /api/v1/watchlists/:id
  */
 router.get('/:id', validateRequest({ params: watchlistParamsSchema }), getWatchlistById);
+
+/**
+ * Calculate & retrieve meaningful-change delta for watchlist.
+ * GET /api/v1/watchlists/:id/delta
+ * NOTE: Completely read-only, does NOT mutate lastVisitedAt.
+ */
+router.get(
+  '/:id/delta',
+  validateRequest({ params: watchlistParamsSchema, query: watchlistDeltaQuerySchema }),
+  getWatchlistDelta
+);
 
 /**
  * Update watchlist name/description.

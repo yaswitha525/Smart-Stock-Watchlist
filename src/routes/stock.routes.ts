@@ -6,6 +6,7 @@ import {
   getSnapshotHistory,
   recordSnapshot,
   refreshMarketData,
+  getStockDelta,
 } from '../controllers/stock.controller.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { validateRequest } from '../middleware/validate-request.js';
@@ -16,6 +17,7 @@ import {
   snapshotQuerySchema,
   recordSnapshotSchema,
 } from '../types/stock.js';
+import { stockDeltaQuerySchema } from '../types/delta.js';
 
 const router = Router();
 
@@ -42,6 +44,16 @@ router.post('/refresh', authenticate, refreshMarketData);
  * Public Endpoint: GET /api/v1/stocks/:id
  */
 router.get('/:id', validateRequest({ params: stockIdParamsSchema }), getStockById);
+
+/**
+ * Get single stock meaningful-change delta.
+ * Public Endpoint: GET /api/v1/stocks/:id/delta
+ */
+router.get(
+  '/:id/delta',
+  validateRequest({ params: stockIdParamsSchema, query: stockDeltaQuerySchema }),
+  getStockDelta
+);
 
 /**
  * Get historical price snapshots time-series for a stock.

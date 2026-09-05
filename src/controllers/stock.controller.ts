@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { StockService } from '../services/stock.service.js';
+import { DeltaService } from '../services/delta.service.js';
 import { sendSuccess } from '../utils/response.js';
 import { asyncHandler } from '../utils/async-handler.js';
 
@@ -59,4 +60,15 @@ export const recordSnapshot = asyncHandler(async (req: Request, res: Response) =
 export const refreshMarketData = asyncHandler(async (_req: Request, res: Response) => {
   const result = await StockService.refreshMarketData();
   return sendSuccess(res, result, 200);
+});
+
+/**
+ * Calculate meaningful-change delta analysis for a single stock against a reference timestamp.
+ * GET /api/v1/stocks/:id/delta
+ */
+export const getStockDelta = asyncHandler(async (req: Request, res: Response) => {
+  const stockId = req.params.id;
+  const since = req.query.since ? new Date(req.query.since as string) : new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const delta = await DeltaService.calculateStockDelta(stockId, since, req.query as any);
+  return sendSuccess(res, delta, 200);
 });

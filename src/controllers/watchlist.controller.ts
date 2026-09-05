@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import { WatchlistService } from '../services/watchlist.service.js';
+import { DeltaService } from '../services/delta.service.js';
 import { sendSuccess } from '../utils/response.js';
 import { asyncHandler } from '../utils/async-handler.js';
 import { AuthenticatedRequest } from '../types/auth.js';
@@ -90,4 +91,16 @@ export const recordWatchlistVisit = asyncHandler(async (req: AuthenticatedReques
   const watchlistId = req.params.id;
   const visit = await WatchlistService.recordWatchlistVisit(userId, watchlistId);
   return sendSuccess(res, visit, 200);
+});
+
+/**
+ * Calculate and retrieve meaningful-change delta analysis for a user watchlist.
+ * GET /api/v1/watchlists/:id/delta
+ * NOTE: Completely read-only, does NOT mutate lastVisitedAt.
+ */
+export const getWatchlistDelta = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.id;
+  const watchlistId = req.params.id;
+  const delta = await DeltaService.calculateWatchlistDelta(userId, watchlistId, req.query as any);
+  return sendSuccess(res, delta, 200);
 });

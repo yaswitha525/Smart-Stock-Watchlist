@@ -14,7 +14,7 @@
 | **Phase 3** | **Authentication (JWT)** | ✅ **COMPLETED** | 2026-09-05 |
 | **Phase 4** | **Watchlist APIs** | ✅ **COMPLETED** | 2026-09-05 |
 | **Phase 5** | **Market Data Integration** | ✅ **COMPLETED** | 2026-09-05 |
-| **Phase 6** | Meaningful-Change Detection Algorithm | ⏳ Pending | - |
+| **Phase 6** | **Meaningful-Change Detection Algorithm** | ✅ **COMPLETED** | 2026-09-05 |
 | **Phase 7** | Caching, Background Jobs & Resilience (Redis/BullMQ) | ⏳ Pending | - |
 | **Phase 8** | Frontend Development (React + TypeScript + Tailwind) | ⏳ Pending | - |
 | **Phase 9** | End-to-End Integration Testing | ⏳ Pending | - |
@@ -192,10 +192,38 @@ c:/stockAI/
 
 ---
 
-## ⬜ Upcoming Phases Log
+---
 
-### Phase 6: Meaningful-Change Detection Algorithm
-- [ ] *Pending implementation*
+## 🟩 Phase 6: Meaningful-Change Detection Algorithm — Completion Summary
+
+### 1. What Was Implemented
+- **Deterministic Rule-Based Change Detection Engine**:
+  - Built [`DeltaService`](file:///c:/stockAI/src/services/delta.service.ts) delivering transparent, explainable numeric delta computations without external AI/ML dependencies.
+  - Implemented multi-signal evaluation supporting simultaneous signals:
+    - `SIGNIFICANT_GAIN`: Price change \(\ge +2.0\%\) (configurable via `priceThreshold`).
+    - `SIGNIFICANT_DROP`: Price change \(\le -2.0\%\) (configurable via `priceThreshold`).
+    - `VOLUME_SURGE`: Volume change \(\ge +50.0\%\) (configurable via `volumeThreshold`).
+    - `NEUTRAL`: Neither price nor volume breached threshold bounds.
+- **Baseline Resolution & Strictly Read-Only Semantics**:
+  - Baseline timestamp resolved from `UserWatchlistVisit.lastVisitedAt`. If no visit exists, falls back to `watchlist.createdAt` with `hasPreviousVisit = false`.
+  - `GET /api/v1/watchlists/:id/delta` is **strictly read-only** and never updates `lastVisitedAt`.
+  - `POST /api/v1/watchlists/:id/visit` remains the only explicit operation updating `lastVisitedAt`.
+- **Division-by-Zero & Missing Snapshot Guards**:
+  - Baseline volume of 0 safely returns `volumeChangePercent = null`.
+  - Missing baseline snapshots return `baselinePrice = null` and `priceDelta = 0` without producing `NaN` or `Infinity`.
+- **Human-Readable Natural Language Insights**:
+  - Generates clear stock insights (e.g., *"RELIANCE rose +5.20% and experienced a +65.00% volume surge since your last visit on Sep 5, 2026"*).
+  - Provides a high-level watchlist summary insight highlighting total meaningful changes and top gainers/movers.
+- **Endpoints & Validation Schemas**:
+  - `GET /api/v1/watchlists/:id/delta`: Computes watchlist-wide stock deltas with optional query thresholds (`priceThreshold`, `volumeThreshold`, `referenceTime`). Protected by JWT auth and strict watchlist ownership checks (User B receives 404 for User A's watchlists).
+  - `GET /api/v1/stocks/:id/delta`: Single stock delta endpoint against a reference timestamp.
+  - Zod validation schemas (`watchlistDeltaQuerySchema`, `stockDeltaQuerySchema`) in [`src/types/delta.ts`](file:///c:/stockAI/src/types/delta.ts).
+- **Automated Integration Tests**:
+  - 13 comprehensive integration tests in [`tests/integration/delta.test.ts`](file:///c:/stockAI/tests/integration/delta.test.ts) covering algorithmic rule classification, multi-signal support, zero volume protection, missing baseline handling, custom threshold parameters, read-only delta semantics, first vs. previous visit baselines, and ownership isolation.
+
+---
+
+## ⬜ Upcoming Phases Log
 
 ### Phase 7: Caching, Background Jobs & Resilience
 - [ ] *Pending implementation*
