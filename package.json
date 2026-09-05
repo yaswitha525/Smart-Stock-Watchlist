@@ -7,10 +7,12 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc && npx prisma generate",
+    "build:all": "cd client && npm run build && cd .. && npm run build",
     "start": "node dist/server.js",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "tsx scripts/verify-e2e.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts"

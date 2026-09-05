@@ -8,13 +8,30 @@ Instead of just showing static stock prices, this system helps users immediately
 
 ## 🛠 Tech Stack
 
-- **Runtime**: Node.js (v18+)
+- **Runtime**: Node.js (v22 / Alpine Docker)
+- **Frontend**: React + TypeScript + Tailwind CSS (`MarketPulse Intelligence`)
 - **Framework**: Express (v4.x)
-- **Language**: TypeScript (v5.x, Strict Mode)
-- **Configuration & Validation**: `dotenv`, `zod`
-- **Logging**: `pino`, `pino-http`
-- **Security**: `helmet`, `cors`
+- **Database**: PostgreSQL 16 + Prisma ORM
+- **Cache & Queue**: Redis 7 + BullMQ
+- **Containerization**: Docker & Docker Compose
 - **Testing**: `vitest`, `supertest`
+
+---
+
+## 🐳 Production Containerization & Docker Compose
+
+Deploy the entire production stack (PostgreSQL, Redis, and Express + React Application) with a single command:
+
+```bash
+# Build and launch all services in background
+docker compose up -d --build
+
+# Inspect logs
+docker compose logs -f app
+
+# Run full 20-step end-to-end system verification
+npm run test:e2e
+```
 
 ---
 
