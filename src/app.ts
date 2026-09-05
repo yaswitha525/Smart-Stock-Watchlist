@@ -27,6 +27,9 @@ export const createApp = (): Express => {
   // Versioned API Router (/api/v1)
   app.use('/api/v1', routes);
 
+  // Serve static frontend assets if built
+  app.use(express.static('client/dist'));
+
   // Catch-all 404 Not Found Handler
   app.use(notFoundHandler);
 
