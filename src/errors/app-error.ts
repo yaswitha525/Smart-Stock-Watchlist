@@ -90,3 +90,34 @@ export class DatabaseConnectionError extends AppError {
     super(message, statusCode, 'DATABASE_CONNECTION_ERROR', true);
   }
 }
+
+export class MarketDataConfigError extends AppError {
+  constructor(message = 'Market data provider configuration error') {
+    super(message, 500, 'MARKET_DATA_CONFIG_ERROR', true);
+  }
+}
+
+export class MarketDataProviderError extends AppError {
+  constructor(message = 'Market data provider error', statusCode = 502, details?: unknown) {
+    super(message, statusCode, 'MARKET_DATA_PROVIDER_ERROR', true, details);
+  }
+}
+
+export class MarketDataRateLimitError extends AppError {
+  constructor(message = 'Market data provider rate limit exceeded') {
+    super(message, 429, 'MARKET_DATA_RATE_LIMIT_ERROR', true);
+  }
+}
+
+export class MarketDataTimeoutError extends AppError {
+  constructor(message = 'Market data provider request timed out') {
+    super(message, 504, 'MARKET_DATA_TIMEOUT_ERROR', true);
+  }
+}
+
+export class MarketDataValidationError extends AppError {
+  constructor(message = 'Invalid response data received from market data provider') {
+    super(message, 502, 'MARKET_DATA_VALIDATION_ERROR', true);
+  }
+}
+

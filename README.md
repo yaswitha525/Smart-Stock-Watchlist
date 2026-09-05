@@ -77,7 +77,41 @@ cp .env.example .env
 | `DATABASE_URL` | String | Optional (Phase 2+) | PostgreSQL Connection String | - |
 | `REDIS_URL` | String | Optional (Phase 7+) | Redis Connection String | - |
 | `JWT_SECRET` | String | Optional (Phase 3+) | JWT Secret Key for Auth | - |
-| `MARKET_DATA_API_KEY` | String | Optional (Phase 5+) | External Market Data API Key | - |
+| `MARKET_DATA_PROVIDER` | Enum (`mock` \| `real`) | **Required (Phase 8)** | Market provider engine (`mock` or `real`) | `mock` |
+| `MARKET_API_KEY` | String | Optional (Phase 8) | Live external Market Data API key | - |
+| `MARKET_API_BASE_URL` | String | Optional (Phase 8) | External Market Data API base URL | `https://api.marketdata.app/v1` |
+
+---
+
+## 📈 Market Data Provider Architecture (Phase 8)
+
+The backend features a swappable `IMarketDataProvider` abstraction:
+
+```
+                  IMarketDataProvider
+                           |
+            +--------------+--------------+
+            |                             |
+  MockMarketDataProvider       RealMarketDataProvider
+  (Deterministic Dev/Test)                |
+                                          ↓
+                                 External Market API
+```
+
+### Provider Selection (`MARKET_DATA_PROVIDER`)
+- **`MARKET_DATA_PROVIDER=mock`** (default): Uses deterministic in-memory `MockMarketDataProvider`. Ideal for offline development, local unit tests, and reproducible test runs.
+- **`MARKET_DATA_PROVIDER=real`**: Uses `RealMarketDataProvider` which makes live HTTP requests to the external market data API.
+
+### Response Mapping & Data Timestamp Integrity
+- External API quotes (e.g. MarketData.app array/flat responses) are sanitized and mapped into standard `MarketQuoteMetadata`.
+- The provider quote timestamp is recorded as `dataTimestamp` on `StockSnapshot`.
+- Database write timestamp is recorded separately as `recordedAt`.
+- If a market snapshot's `dataTimestamp` is older than `STALE_DATA_THRESHOLD_MS` (default 5 mins), it is automatically flagged as `isStale: true`.
+
+### API Key Security & Sanitization
+- API keys are strictly configured via environment variables (`MARKET_API_KEY` or `MARKET_DATA_API_KEY`).
+- All loggers, error tracebacks, and client responses automatically mask API credentials (`token=***MASKED***`).
+
 
 ---
 

@@ -32,9 +32,12 @@ const envSchema = z.object({
   JWT_SECRET: z.string().optional(),
   JWT_EXPIRES_IN: z.string().default('24h'),
 
-  // Phase 7 Cache & Job Configuration
+  // Phase 7 & Phase 8 Cache, Job & Market Data Configuration
   REDIS_URL: z.string().optional(),
+  MARKET_DATA_PROVIDER: z.enum(['mock', 'real']).default('mock'),
+  MARKET_API_KEY: z.string().optional(),
   MARKET_DATA_API_KEY: z.string().optional(),
+  MARKET_API_BASE_URL: z.string().default('https://api.marketdata.app/v1'),
   MARKET_REFRESH_INTERVAL_MS: z
     .string()
     .default('60000')
@@ -101,8 +104,29 @@ export const config = {
 
   // Market Data & Scheduling configuration
   marketData: {
-    apiKey: env.MARKET_DATA_API_KEY || null,
-    isConfigured: Boolean(env.MARKET_DATA_API_KEY),
+    get provider() {
+      return process.env.MARKET_DATA_PROVIDER || env.MARKET_DATA_PROVIDER || 'mock';
+    },
+    get apiKey() {
+      return (
+        process.env.MARKET_API_KEY ||
+        process.env.MARKET_DATA_API_KEY ||
+        env.MARKET_API_KEY ||
+        env.MARKET_DATA_API_KEY ||
+        null
+      );
+    },
+    get baseUrl() {
+      return process.env.MARKET_API_BASE_URL || env.MARKET_API_BASE_URL || 'https://api.marketdata.app/v1';
+    },
+    get isConfigured() {
+      return Boolean(
+        process.env.MARKET_API_KEY ||
+          process.env.MARKET_DATA_API_KEY ||
+          env.MARKET_API_KEY ||
+          env.MARKET_DATA_API_KEY
+      );
+    },
     get refreshIntervalMs() {
       const val = process.env.MARKET_REFRESH_INTERVAL_MS;
       return val ? parseInt(val, 10) : env.MARKET_REFRESH_INTERVAL_MS;

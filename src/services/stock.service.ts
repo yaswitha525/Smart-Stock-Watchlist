@@ -3,7 +3,7 @@ import { config } from '../config/index.js';
 import { logger } from '../config/logger.js';
 import { NotFoundError, BadRequestError } from '../errors/app-error.js';
 import { IMarketDataProvider, MarketQuoteMetadata } from './market-data/provider.interface.js';
-import { MockMarketDataProvider } from './market-data/mock-provider.js';
+import { MarketDataProviderFactory } from './market-data/provider.factory.js';
 import { CacheService } from './cache/cache.service.js';
 import {
   StockQueryDto,
@@ -17,10 +17,10 @@ import {
 
 export class StockService {
   /**
-   * Active Market Data Provider instance. Defaults to MockMarketDataProvider.
+   * Active Market Data Provider instance. Selected via `MarketDataProviderFactory`.
    * Swappable via `setProvider()`.
    */
-  private static provider: IMarketDataProvider = new MockMarketDataProvider();
+  private static provider: IMarketDataProvider = MarketDataProviderFactory.getProvider();
 
   /**
    * Sets/swaps the active Market Data Provider instance.
