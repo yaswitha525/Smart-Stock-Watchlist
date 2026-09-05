@@ -1,7 +1,10 @@
 import { prisma } from '../db/prisma.js';
+import { config } from '../config/index.js';
+import { logger } from '../config/logger.js';
 import { NotFoundError, BadRequestError } from '../errors/app-error.js';
 import { IMarketDataProvider, MarketQuoteMetadata } from './market-data/provider.interface.js';
 import { MockMarketDataProvider } from './market-data/mock-provider.js';
+import { CacheService } from './cache/cache.service.js';
 import {
   StockQueryDto,
   SnapshotQueryDto,
@@ -36,16 +39,21 @@ export class StockService {
   /**
    * Formats a raw Prisma StockSnapshot record into `StockSnapshotResponse`.
    * Safely converts Decimal to number and BigInt volume to number.
+   * Evaluates stale/delayed data flag against STALE_DATA_THRESHOLD_MS.
    */
   public static formatSnapshotResponse(snapshot: any): StockSnapshotResponse {
+    const dataTime = snapshot.dataTimestamp instanceof Date ? snapshot.dataTimestamp.getTime() : new Date(snapshot.dataTimestamp).getTime();
+    const isStale = Date.now() - dataTime > config.marketData.staleThresholdMs;
+
     return {
       id: snapshot.id,
       stockId: snapshot.stockId,
       price: Number(snapshot.price),
       volume: Number(snapshot.volume),
       changePercent: snapshot.changePercent,
-      dataTimestamp: snapshot.dataTimestamp.toISOString(),
-      recordedAt: snapshot.recordedAt.toISOString(),
+      dataTimestamp: snapshot.dataTimestamp instanceof Date ? snapshot.dataTimestamp.toISOString() : new Date(snapshot.dataTimestamp).toISOString(),
+      recordedAt: snapshot.recordedAt instanceof Date ? snapshot.recordedAt.toISOString() : new Date(snapshot.recordedAt).toISOString(),
+      isStale,
     };
   }
 
@@ -67,9 +75,17 @@ export class StockService {
   }
 
   /**
-   * Searches and lists stock master catalog with pagination & filters.
+   * Searches and lists stock master catalog with pagination & filters. Cached for performance.
    */
   public static async listStocks(query: StockQueryDto): Promise<PaginatedStockResponse> {
+    const queryHash = JSON.stringify(query);
+    const cacheKey = CacheService.keys.stockCatalog(Buffer.from(queryHash).toString('base64'));
+
+    const cached = await CacheService.get<PaginatedStockResponse>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const { search, sector, exchange, page = 1, limit = 20 } = query;
     const skip = (page - 1) * limit;
 
@@ -105,7 +121,7 @@ export class StockService {
 
     const totalPages = Math.ceil(totalItems / limit) || 1;
 
-    return {
+    const result: PaginatedStockResponse = {
       items: stocks.map((s) => this.formatStockResponse(s, s.snapshots[0] || null)),
       pagination: {
         page,
@@ -114,12 +130,21 @@ export class StockService {
         totalPages,
       },
     };
+
+    await CacheService.set(cacheKey, result, 60);
+    return result;
   }
 
   /**
    * Retrieves a single stock master record by ID with its latest price snapshot.
    */
   public static async getStockById(stockId: string): Promise<StockResponse> {
+    const cacheKey = CacheService.keys.stockDetail(stockId);
+    const cached = await CacheService.get<StockResponse>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const stock = await prisma.stock.findUnique({
       where: { id: stockId },
       include: {
@@ -134,7 +159,9 @@ export class StockService {
       throw new NotFoundError('Stock not found');
     }
 
-    return this.formatStockResponse(stock, stock.snapshots[0] || null);
+    const result = this.formatStockResponse(stock, stock.snapshots?.[0] || null);
+    await CacheService.set(cacheKey, result, 60);
+    return result;
   }
 
   /**
@@ -163,7 +190,7 @@ export class StockService {
       throw new NotFoundError('Stock not found');
     }
 
-    return this.formatStockResponse(stock, stock.snapshots[0] || null);
+    return this.formatStockResponse(stock, stock.snapshots?.[0] || null);
   }
 
   /**
@@ -173,6 +200,15 @@ export class StockService {
     stockId: string,
     query: SnapshotQueryDto
   ): Promise<StockSnapshotResponse[]> {
+    const limit = query.limit || 50;
+    const order = query.order || 'desc';
+    const cacheKey = `${CacheService.keys.stockHistory(stockId)}:${order}:${limit}`;
+
+    const cached = await CacheService.get<StockSnapshotResponse[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const stock = await prisma.stock.findUnique({
       where: { id: stockId },
     });
@@ -181,20 +217,19 @@ export class StockService {
       throw new NotFoundError('Stock not found');
     }
 
-    const limit = query.limit || 50;
-    const order = query.order || 'desc';
-
     const snapshots = await prisma.stockSnapshot.findMany({
       where: { stockId },
       orderBy: { dataTimestamp: order },
       take: limit,
     });
 
-    return snapshots.map((s) => this.formatSnapshotResponse(s));
+    const result = snapshots.map((s) => this.formatSnapshotResponse(s));
+    await CacheService.set(cacheKey, result, 60);
+    return result;
   }
 
   /**
-   * Manually ingests/records a new market price snapshot for a stock.
+   * Manually ingests/records a new market price snapshot for a stock and invalidates caches.
    */
   public static async recordSnapshot(
     stockId: string,
@@ -225,12 +260,17 @@ export class StockService {
       },
     });
 
+    // Invalidate affected stock and delta caches
+    await CacheService.del([CacheService.keys.stockDetail(stockId), CacheService.keys.stockHistory(stockId)]);
+    await CacheService.delByPattern('stock:catalog:*');
+    await CacheService.delByPattern('delta:*');
+
     return this.formatSnapshotResponse(snapshot);
   }
 
   /**
    * Triggers a batch refresh of live market data for all active stocks using the active provider.
-   * Employs resilient per-stock error isolation.
+   * Employs bounded retries with exponential backoff and resilient per-stock error isolation.
    */
   public static async refreshMarketData(): Promise<BatchRefreshResponse> {
     const activeStocks = await prisma.stock.findMany({
@@ -247,10 +287,28 @@ export class StockService {
       };
     }
 
-    // Fetch batch quotes from provider
-    const quotes = await this.provider.fetchBatchQuotes(
-      activeStocks.map((s) => ({ symbol: s.symbol, exchange: s.exchange }))
-    );
+    // Bounded retries (max 3) with exponential backoff for provider quotes
+    let quotes: MarketQuoteMetadata[] = [];
+    let attempts = 0;
+    const maxAttempts = 3;
+
+    while (attempts < maxAttempts) {
+      try {
+        attempts++;
+        quotes = await this.provider.fetchBatchQuotes(
+          activeStocks.map((s) => ({ symbol: s.symbol, exchange: s.exchange }))
+        );
+        break;
+      } catch (err) {
+        logger.warn({ attempt: attempts, err }, 'Batch quote fetch failed, retrying with exponential backoff...');
+        if (attempts >= maxAttempts) {
+          logger.error('Max retry attempts reached for market quote fetch.');
+          quotes = []; // Fall through with empty quotes to record per-stock partial failure
+        } else {
+          await new Promise((res) => setTimeout(res, 100 * Math.pow(2, attempts - 1)));
+        }
+      }
+    }
 
     const quoteMap = new Map<string, MarketQuoteMetadata>();
     for (const q of quotes) {
@@ -261,7 +319,7 @@ export class StockService {
     let failed = 0;
     const createdSnapshots: StockSnapshotResponse[] = [];
 
-    // Resilient snapshot creation per stock
+    // Resilient snapshot creation per stock (partial success support)
     for (const stock of activeStocks) {
       const quote = quoteMap.get(`${stock.exchange}:${stock.symbol}`);
       if (!quote) {
@@ -286,6 +344,12 @@ export class StockService {
       } catch (error) {
         failed++;
       }
+    }
+
+    // Invalidate affected caches after batch refresh
+    if (succeeded > 0) {
+      await CacheService.delByPattern('stock:*');
+      await CacheService.delByPattern('delta:*');
     }
 
     return {

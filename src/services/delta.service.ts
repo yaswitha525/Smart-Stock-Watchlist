@@ -1,6 +1,7 @@
 import { prisma } from '../db/prisma.js';
 import { NotFoundError } from '../errors/app-error.js';
 import { StockService } from './stock.service.js';
+import { CacheService } from './cache/cache.service.js';
 import {
   ChangeSignal,
   DEFAULT_PRICE_THRESHOLD,
@@ -188,6 +189,12 @@ export class DeltaService {
     watchlistId: string,
     options: WatchlistDeltaQueryDto
   ): Promise<WatchlistDeltaResponse> {
+    const cacheKey = CacheService.keys.watchlistDelta(watchlistId, userId);
+    const cached = await CacheService.get<WatchlistDeltaResponse>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const watchlist = await prisma.watchlist.findFirst({
       where: {
         id: watchlistId,
@@ -245,7 +252,7 @@ export class DeltaService {
       summaryInsight = `Initial baseline view for '${watchlist.name}'. ${meaningfulChangesCount} of ${totalStocks} stock${totalStocks > 1 ? 's' : ''} moved meaningfully since watchlist creation on ${formattedRefDate}.`;
     }
 
-    return {
+    const result: WatchlistDeltaResponse = {
       watchlistId: watchlist.id,
       watchlistName: watchlist.name,
       referenceTimestamp: referenceTimestamp.toISOString(),
@@ -255,5 +262,8 @@ export class DeltaService {
       summaryInsight,
       items,
     };
+
+    await CacheService.set(cacheKey, result, 15);
+    return result;
   }
 }

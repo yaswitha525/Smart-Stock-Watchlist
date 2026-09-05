@@ -32,9 +32,21 @@ const envSchema = z.object({
   JWT_SECRET: z.string().optional(),
   JWT_EXPIRES_IN: z.string().default('24h'),
 
-  // Future Module Configurations
+  // Phase 7 Cache & Job Configuration
   REDIS_URL: z.string().optional(),
   MARKET_DATA_API_KEY: z.string().optional(),
+  MARKET_REFRESH_INTERVAL_MS: z
+    .string()
+    .default('60000')
+    .transform((val) => parseInt(val, 10)),
+  STALE_DATA_THRESHOLD_MS: z
+    .string()
+    .default('300000')
+    .transform((val) => parseInt(val, 10)),
+  CACHE_TTL_DEFAULT: z
+    .string()
+    .default('60')
+    .transform((val) => parseInt(val, 10)),
 });
 
 type ConfigSchema = z.infer<typeof envSchema>;
@@ -77,14 +89,36 @@ export const config = {
     },
   },
 
-  // Future module configuration placeholders
+  // Redis & Caching configuration
   redis: {
-    url: env.REDIS_URL || null,
-    isConfigured: Boolean(env.REDIS_URL),
+    get url() {
+      return process.env.REDIS_URL || env.REDIS_URL || null;
+    },
+    get isConfigured() {
+      return Boolean(process.env.REDIS_URL || env.REDIS_URL);
+    },
   },
+
+  // Market Data & Scheduling configuration
   marketData: {
     apiKey: env.MARKET_DATA_API_KEY || null,
     isConfigured: Boolean(env.MARKET_DATA_API_KEY),
+    get refreshIntervalMs() {
+      const val = process.env.MARKET_REFRESH_INTERVAL_MS;
+      return val ? parseInt(val, 10) : env.MARKET_REFRESH_INTERVAL_MS;
+    },
+    get staleThresholdMs() {
+      const val = process.env.STALE_DATA_THRESHOLD_MS;
+      return val ? parseInt(val, 10) : env.STALE_DATA_THRESHOLD_MS;
+    },
+  },
+
+  // Cache settings
+  cache: {
+    get defaultTtlSeconds() {
+      const val = process.env.CACHE_TTL_DEFAULT;
+      return val ? parseInt(val, 10) : env.CACHE_TTL_DEFAULT;
+    },
   },
 } as const;
 

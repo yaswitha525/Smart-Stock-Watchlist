@@ -94,6 +94,7 @@ export interface StockSnapshotResponse {
   changePercent: number;
   dataTimestamp: string;
   recordedAt: string;
+  isStale: boolean;
 }
 
 /**

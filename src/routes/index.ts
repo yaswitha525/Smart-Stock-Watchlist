@@ -3,6 +3,7 @@ import healthRoutes from './health.routes.js';
 import authRoutes from './auth.routes.js';
 import watchlistRoutes from './watchlist.routes.js';
 import stockRoutes from './stock.routes.js';
+import systemRoutes from './system.routes.js';
 
 const router = Router();
 
@@ -17,5 +18,8 @@ router.use('/watchlists', watchlistRoutes);
 
 // Stock & Market Data module routes (Phase 5)
 router.use('/stocks', stockRoutes);
+
+// System telemetry & cache stats routes (Phase 7)
+router.use('/system', systemRoutes);
 
 export default router;

@@ -53,11 +53,21 @@ export const recordSnapshot = asyncHandler(async (req: Request, res: Response) =
   return sendSuccess(res, snapshot, 201);
 });
 
+import { JobQueueService } from '../services/jobs/job-queue.service.js';
+
 /**
  * Trigger batch refresh of live market data quotes for all active stocks.
+ * Supports async background job execution when ?async=true is passed.
  * Protected Endpoint: POST /api/v1/stocks/refresh
  */
-export const refreshMarketData = asyncHandler(async (_req: Request, res: Response) => {
+export const refreshMarketData = asyncHandler(async (req: Request, res: Response) => {
+  const isAsync = req.query.async === 'true';
+
+  if (isAsync) {
+    const jobResult = await JobQueueService.dispatchRefreshJob();
+    return sendSuccess(res, jobResult, 202);
+  }
+
   const result = await StockService.refreshMarketData();
   return sendSuccess(res, result, 200);
 });

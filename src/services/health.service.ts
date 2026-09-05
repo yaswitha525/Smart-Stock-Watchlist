@@ -1,5 +1,8 @@
 import { config } from '../config/index.js';
 import { checkDatabaseHealth, DatabaseHealthStatus } from '../db/prisma.js';
+import { CacheService } from './cache/cache.service.js';
+import { CacheStats } from './cache/cache.interface.js';
+import { JobQueueService } from './jobs/job-queue.service.js';
 
 export interface HealthStatus {
   status: 'ok' | 'degraded' | 'error';
@@ -9,6 +12,10 @@ export interface HealthStatus {
   environment: string;
   uptime: number;
   database: DatabaseHealthStatus;
+  cache?: CacheStats;
+  jobs?: {
+    isRefreshRunning: boolean;
+  };
 }
 
 /**
@@ -17,6 +24,7 @@ export interface HealthStatus {
 export class HealthService {
   public static async getStatus(): Promise<HealthStatus> {
     const dbHealth = await checkDatabaseHealth();
+    const cacheStats = await CacheService.getStats();
     let overallStatus: 'ok' | 'degraded' | 'error' = 'ok';
 
     if (!dbHealth.connected) {
@@ -31,6 +39,10 @@ export class HealthService {
       environment: config.env,
       uptime: Math.floor(process.uptime()),
       database: dbHealth,
+      cache: cacheStats,
+      jobs: {
+        isRefreshRunning: JobQueueService.isJobRunning(),
+      },
     };
   }
 }

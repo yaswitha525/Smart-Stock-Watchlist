@@ -1,4 +1,5 @@
 import { prisma } from '../db/prisma.js';
+import { CacheService } from './cache/cache.service.js';
 import {
   NotFoundError,
   BadRequestError,
@@ -281,6 +282,8 @@ export class WatchlistService {
         }),
       ]);
 
+      await CacheService.delByPattern(CacheService.keys.watchlistDeltaPattern(watchlistId));
+
       return {
         id: item.id,
         watchlistId: item.watchlistId,
@@ -341,6 +344,8 @@ export class WatchlistService {
         data: { updatedAt: new Date() },
       }),
     ]);
+
+    await CacheService.delByPattern(CacheService.keys.watchlistDeltaPattern(watchlistId));
   }
 
   /**
@@ -368,6 +373,8 @@ export class WatchlistService {
         lastVisitedAt: new Date(),
       },
     });
+
+    await CacheService.delByPattern(CacheService.keys.watchlistDeltaPattern(watchlistId));
 
     return {
       id: visit.id,

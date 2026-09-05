@@ -3,6 +3,8 @@ import { app } from './app.js';
 import { config } from './config/index.js';
 import { logger } from './config/logger.js';
 import { connectDatabase, disconnectDatabase } from './db/prisma.js';
+import { JobQueueService } from './services/jobs/job-queue.service.js';
+import { SchedulerService } from './services/jobs/scheduler.service.js';
 
 let server: Server;
 
@@ -11,7 +13,11 @@ const startServer = async (): Promise<void> => {
     // 1. Initialize Database connection
     await connectDatabase();
 
-    // 2. Start HTTP listener
+    // 2. Initialize Background Job Queue & Start Scheduler
+    JobQueueService.init();
+    SchedulerService.start();
+
+    // 3. Start HTTP listener
     server = app.listen(config.port, () => {
       logger.info(
         `🚀 Smart Market Watchlist API started successfully on port ${config.port} [${config.env}]`
@@ -31,6 +37,8 @@ const startServer = async (): Promise<void> => {
 const gracefulShutdown = (signal: string): void => {
   logger.info(`Received ${signal}. Initiating graceful shutdown...`);
 
+  SchedulerService.stop();
+
   if (!server) {
     logger.info('HTTP server was not running. Exiting now.');
     process.exit(0);
@@ -48,6 +56,9 @@ const gracefulShutdown = (signal: string): void => {
     } else {
       logger.info('HTTP server closed successfully.');
     }
+
+    // Stop BullMQ job queue & worker
+    await JobQueueService.shutdown();
 
     // Disconnect PostgreSQL PrismaClient pool
     await disconnectDatabase();

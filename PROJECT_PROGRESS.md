@@ -15,7 +15,7 @@
 | **Phase 4** | **Watchlist APIs** | ✅ **COMPLETED** | 2026-09-05 |
 | **Phase 5** | **Market Data Integration** | ✅ **COMPLETED** | 2026-09-05 |
 | **Phase 6** | **Meaningful-Change Detection Algorithm** | ✅ **COMPLETED** | 2026-09-05 |
-| **Phase 7** | Caching, Background Jobs & Resilience (Redis/BullMQ) | ⏳ Pending | - |
+| **Phase 7** | **Caching, Background Jobs & Resilience (Redis/BullMQ)** | ✅ **COMPLETED** | 2026-09-05 |
 | **Phase 8** | Frontend Development (React + TypeScript + Tailwind) | ⏳ Pending | - |
 | **Phase 9** | End-to-End Integration Testing | ⏳ Pending | - |
 | **Phase 10** | Deployment & Final Optimization | ⏳ Pending | - |
@@ -223,10 +223,38 @@ c:/stockAI/
 
 ---
 
-## ⬜ Upcoming Phases Log
+## 🟩 Phase 7: Caching, Background Jobs & Resilience — Completion Summary
 
-### Phase 7: Caching, Background Jobs & Resilience
-- [ ] *Pending implementation*
+### 1. What Was Implemented
+- **Dual-Tier Cache Engine (`ICacheProvider`)**:
+  - Implemented [`RedisCacheProvider`](file:///c:/stockAI/src/services/cache/redis-cache.ts) (via `ioredis`) with seamless automatic fallback to [`InMemoryCacheProvider`](file:///c:/stockAI/src/services/cache/in-memory-cache.ts) if Redis is unavailable or unconfigured.
+  - PostgreSQL remains the single source of truth; cache failures never degrade app availability.
+- **BullMQ + Redis Background Job Processing**:
+  - Created [`JobQueueService`](file:///c:/stockAI/src/services/jobs/job-queue.service.ts) using `bullmq` with `refresh-lock` job deduplication preventing overlapping refresh tasks.
+  - In-memory job worker fallback for local development & Vitest test runner when Redis is offline.
+  - Supports `POST /api/v1/stocks/refresh?async=true` returning 202 Accepted and job tracking status.
+- **Deduplicated Periodic Job Scheduler**:
+  - Implemented [`SchedulerService`](file:///c:/stockAI/src/services/jobs/scheduler.service.ts) running background market quote refreshes every `MARKET_REFRESH_INTERVAL_MS` (default: `60000` ms).
+  - Skips execution ticks if a previous refresh job is still processing.
+- **Resilient Market Data Fetching & Stale Data Detection**:
+  - Bounded retries with exponential backoff (up to 3 attempts with 100ms, 200ms, 400ms delays) for market data provider errors.
+  - Partial batch refresh success support: successfully retrieved quotes are saved even if individual ticker quotes fail.
+  - Stale market data detection: flags snapshots as `isStale: true` when `dataTimestamp` is older than `STALE_DATA_THRESHOLD_MS` (default: 5 minutes).
+- **Cache Invalidation Hooks**:
+  - Snapshot ingestion / refresh invalidates stock catalog (`stock:catalog:*`), stock details, snapshot history, and computed delta caches (`delta:*`).
+  - Watchlist modifications (adding/removing items or recording visits) invalidate affected watchlist delta caches (`delta:watchlist:<id>:*`).
+  - `GET /api/v1/watchlists/:id/delta` remains strictly read-only; cache reads and writes never alter `lastVisitedAt`.
+- **API Rate Limiting & Telemetry**:
+  - `authRateLimiter` (10 req/min) protecting `/api/v1/auth/register` and `/api/v1/auth/login`.
+  - `apiRateLimiter` (100 req/min) protecting write and ingestion operations.
+  - Protected internal telemetry endpoint `GET /api/v1/system/cache-stats` requiring Bearer JWT authentication.
+  - Health check endpoint `GET /api/v1/health` includes `cache` and `jobs` telemetry status.
+- **Automated Integration Tests**:
+  - 12 comprehensive integration tests in [`tests/integration/cache-jobs.test.ts`](file:///c:/stockAI/tests/integration/cache-jobs.test.ts) covering cache hit/miss, TTL expiration, invalidation hooks, Redis fallback, background job dispatch, deduplication locks, bounded retries, partial failure handling, stale data detection, rate limiting, and read-only delta behavior.
+
+---
+
+## ⬜ Upcoming Phases Log
 
 ### Phase 8: Frontend Development
 - [ ] *Pending implementation*
