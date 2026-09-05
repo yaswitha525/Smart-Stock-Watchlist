@@ -12,8 +12,8 @@
 | **Phase 1** | **Backend Foundation** | ✅ **COMPLETED** | 2026-09-05 |
 | **Phase 2** | **Database & Persistence** | ✅ **COMPLETED** | 2026-09-05 |
 | **Phase 3** | **Authentication (JWT)** | ✅ **COMPLETED** | 2026-09-05 |
-| **Phase 4** | Watchlist APIs | ⏳ Pending | - |
-| **Phase 5** | Market Data Integration | ⏳ Pending | - |
+| **Phase 4** | **Watchlist APIs** | ✅ **COMPLETED** | 2026-09-05 |
+| **Phase 5** | **Market Data Integration** | ✅ **COMPLETED** | 2026-09-05 |
 | **Phase 6** | Meaningful-Change Detection Algorithm | ⏳ Pending | - |
 | **Phase 7** | Caching, Background Jobs & Resilience (Redis/BullMQ) | ⏳ Pending | - |
 | **Phase 8** | Frontend Development (React + TypeScript + Tailwind) | ⏳ Pending | - |
@@ -140,13 +140,59 @@ c:/stockAI/
 
 ---
 
+## 🟩 Phase 4: Watchlist APIs — Completion Summary
+
+### 1. What Was Implemented
+- **Pure Prisma/PostgreSQL Persistence**:
+  - Implemented [`WatchlistService`](file:///c:/stockAI/src/services/watchlist.service.ts) using Prisma ORM as the single persistence mechanism without in-memory fallback.
+- **Strict Database & Service Ownership Enforcement**:
+  - All watchlist read, update, delete, item management, and visit recording operations filter by `userId` to guarantee strict multi-tenant isolation. Attempting to access or alter another user's watchlist returns `404 NOT_FOUND`.
+- **Watchlist CRUD & Item Management Endpoints**:
+  - `POST /api/v1/watchlists`: Create watchlist with validated name and description.
+  - `GET /api/v1/watchlists`: List all watchlists owned by authenticated user.
+  - `GET /api/v1/watchlists/:id`: Retrieve watchlist details and stock items without mutating `lastVisitedAt`.
+  - `PUT /api/v1/watchlists/:id`: Update watchlist name/description with ownership check.
+  - `DELETE /api/v1/watchlists/:id`: Delete watchlist with ownership check.
+  - `POST /api/v1/watchlists/:id/items`: Add stock to watchlist (resolving by `stockId` or `symbol` + `exchange`).
+  - `DELETE /api/v1/watchlists/:id/items/:stockId`: Remove stock item from watchlist.
+- **Duplicate Item Prevention & Prisma Transactions**:
+  - Prevented duplicate stock items using pre-checks and database unique constraints (`@@unique([watchlistId, stockId])`) mapped to `409 CONFLICT`.
+  - Atomic multi-step operations (adding/removing items and bumping `updatedAt`) wrapped in `prisma.$transaction`.
+- **Explicit Visit Semantics**:
+  - `POST /api/v1/watchlists/:id/visit`: Explicitly records or updates `UserWatchlistVisit` timestamp (`lastVisitedAt`) for delta change detection in Phase 6.
+- **Payload Validation & Type Safety**:
+  - Created Zod validation schemas (`createWatchlistSchema`, `updateWatchlistSchema`, `addWatchlistItemSchema`, `watchlistParamsSchema`, `watchlistItemParamsSchema`) in [`src/types/watchlist.ts`](file:///c:/stockAI/src/types/watchlist.ts).
+- **Automated Integration Tests**:
+  - Complete integration test suite in [`tests/integration/watchlist.test.ts`](file:///c:/stockAI/tests/integration/watchlist.test.ts) covering all CRUD operations, duplicate handling, visit semantics, and dedicated security tests proving User B cannot read, update, delete, or alter User A's watchlists.
+
+---
+
+## 🟩 Phase 5: Market Data Integration — Completion Summary
+
+### 1. What Was Implemented
+- **Swappable Market Data Provider Architecture**:
+  - Implemented [`IMarketDataProvider`](file:///c:/stockAI/src/services/market-data/provider.interface.ts) interface contract returning `MarketQuoteMetadata` (`symbol`, `exchange`, `price`, `volume`, `changePercent`, `dataTimestamp`, `providerId`).
+  - Created [`MockMarketDataProvider`](file:///c:/stockAI/src/services/market-data/mock-provider.ts) with controlled, seed-driven deterministic simulated quotes for reproducible, non-flaky testing.
+- **Extended `StockSnapshot` Schema (`dataTimestamp` vs `recordedAt`)**:
+  - Updated [`prisma/schema.prisma`](file:///c:/stockAI/prisma/schema.prisma) adding `dataTimestamp` (provider quote timestamp) alongside `recordedAt` (backend store timestamp) with composite index `@@index([stockId, dataTimestamp])`.
+- **Stock Catalog & Market Data Service**:
+  - Implemented [`StockService`](file:///c:/stockAI/src/services/stock.service.ts) providing:
+    - `listStocks(query)`: Search stock catalog with pagination, sector, and exchange filters.
+    - `getStockById(id)` & `getStockBySymbol(symbol, exchange)`: Retrieve stock detail with latest market snapshot.
+    - `getSnapshotHistory(stockId, query)`: Fetch time-series historical snapshots for charting and delta analysis.
+    - `recordSnapshot(stockId, dto)`: Manual snapshot ingestion with validation.
+    - `refreshMarketData()`: Resilient batch market quote refresh across active stocks.
+- **Protected Endpoints & Validation**:
+  - `POST /api/v1/stocks/:id/snapshots` and `POST /api/v1/stocks/refresh` are protected with `authenticate` Bearer JWT middleware.
+  - Zod schemas in [`src/types/stock.ts`](file:///c:/stockAI/src/types/stock.ts) enforce positive prices, non-negative volumes, and pagination constraints.
+- **Safe JSON Serialization**:
+  - Safely converts Prisma `Decimal` prices (`Number(price)`) and `BigInt` volumes (`Number(volume)`) to standard JavaScript numbers.
+- **Automated Integration Tests**:
+  - Comprehensive test suite in [`tests/integration/stock.test.ts`](file:///c:/stockAI/tests/integration/stock.test.ts) covering search, pagination, lookups, ingestion, validation errors, historical series, batch refresh, provider failure resilience, and deterministic mock behavior.
+
+---
+
 ## ⬜ Upcoming Phases Log
-
-### Phase 4: Watchlist APIs
-- [ ] *Pending implementation*
-
-### Phase 5: Market Data Integration
-- [ ] *Pending implementation*
 
 ### Phase 6: Meaningful-Change Detection Algorithm
 - [ ] *Pending implementation*

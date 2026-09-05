@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { User } from '@prisma/client';
@@ -112,7 +113,7 @@ export class AuthService {
       throw new ConflictError('User with this email already exists');
     }
 
-    const id = `user-mem-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    const id = crypto.randomUUID();
     const now = new Date();
     const newUser: User = {
       id,

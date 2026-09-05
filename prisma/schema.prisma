@@ -85,9 +85,11 @@ model StockSnapshot {
   price         Decimal  @db.Decimal(12, 2)
   volume        BigInt
   changePercent Float    @map("change_percent")
+  dataTimestamp DateTime @default(now()) @map("data_timestamp")
   recordedAt    DateTime @default(now()) @map("recorded_at")
   stock         Stock    @relation(fields: [stockId], references: [id], onDelete: Cascade)
 
   @@index([stockId, recordedAt])
+  @@index([stockId, dataTimestamp])
   @@map("stock_snapshots")
 }
