@@ -10,6 +10,7 @@ describe('Phase 4 Watchlist APIs Integration Tests', () => {
   let tokenUserB: string;
   let userIdB: string;
   let watchlistIdA: string;
+  let addedStockId: string;
   const sampleStockId = '11111111-2222-3333-4444-555555555555';
 
   // In-memory db mock store for offline test execution
@@ -47,8 +48,16 @@ describe('Phase 4 Watchlist APIs Integration Tests', () => {
     tokenUserB = userB.token;
     userIdB = userB.user.id;
 
-    // Set up Prisma spies for offline test execution if DB connection is unavailable
-    if (!isDatabaseConnected()) {
+    if (isDatabaseConnected()) {
+      const existing = await prisma.stock.findFirst({
+        where: { symbol: mockStock.symbol, exchange: mockStock.exchange },
+      });
+      if (!existing) {
+        await prisma.stock.create({
+          data: mockStock,
+        });
+      }
+    } else {
       vi.spyOn(prisma.watchlist, 'create').mockImplementation(async (args: any) => {
         const id = '123e4567-e89b-12d3-a456-426614174000';
         const now = new Date();
@@ -270,6 +279,7 @@ describe('Phase 4 Watchlist APIs Integration Tests', () => {
       expect(response.body.data.watchlistId).toBe(watchlistIdA);
       expect(response.body.data).toHaveProperty('stock');
       expect(response.body.data.stock.symbol).toBe('RELIANCE');
+      addedStockId = response.body.data.stock.id;
     });
 
     it('should fail with 409 CONFLICT when adding duplicate stock to same watchlist', async () => {
@@ -368,7 +378,7 @@ describe('Phase 4 Watchlist APIs Integration Tests', () => {
 
     it('User B CANNOT remove stock from User A watchlist (404 NOT_FOUND)', async () => {
       const response = await request(app)
-        .delete(`/api/v1/watchlists/${watchlistIdA}/items/${sampleStockId}`)
+        .delete(`/api/v1/watchlists/${watchlistIdA}/items/${addedStockId || sampleStockId}`)
         .set('Authorization', `Bearer ${tokenUserB}`);
 
       expect(response.status).toBe(404);
@@ -400,7 +410,7 @@ describe('Phase 4 Watchlist APIs Integration Tests', () => {
   describe('DELETE /api/v1/watchlists/:id/items/:stockId (Remove Stock Item)', () => {
     it('should allow User A to remove stock from User A watchlist', async () => {
       const response = await request(app)
-        .delete(`/api/v1/watchlists/${watchlistIdA}/items/${sampleStockId}`)
+        .delete(`/api/v1/watchlists/${watchlistIdA}/items/${addedStockId || sampleStockId}`)
         .set('Authorization', `Bearer ${tokenUserA}`);
 
       expect(response.status).toBe(200);

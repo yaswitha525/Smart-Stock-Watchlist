@@ -122,6 +122,12 @@ export function App() {
         watchlists={watchlists}
         activeWatchlistId={activeWatchlistId}
         onAddStock={addStock}
+        onCreateWatchlist={createWatchlist}
+        isAuthenticated={isAuthenticated}
+        onOpenAuth={() => {
+          setShowSearchModal(false);
+          setShowAuthModal(true);
+        }}
       />
 
       <AuthModal

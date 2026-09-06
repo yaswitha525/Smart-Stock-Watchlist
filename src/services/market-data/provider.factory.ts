@@ -16,12 +16,12 @@ export class MarketDataProviderFactory {
       return this.instance;
     }
 
-    const providerType = (config.marketData.provider || 'mock').toLowerCase().trim();
+    const providerType = (config.marketData.provider || 'real').toLowerCase().trim();
 
-    if (providerType === 'real') {
-      this.instance = new RealMarketDataProvider();
-    } else {
+    if (providerType === 'mock') {
       this.instance = new MockMarketDataProvider();
+    } else {
+      this.instance = new RealMarketDataProvider();
     }
 
     return this.instance;

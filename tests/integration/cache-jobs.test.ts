@@ -33,9 +33,16 @@ describe('Phase 7 Caching, Background Jobs & Resilience Tests', () => {
 
   beforeAll(async () => {
     process.env.JWT_SECRET = process.env.JWT_SECRET || 'test_jwt_secret_key_groww_code_2026';
+    CacheService.setProvider(new InMemoryCacheProvider());
     await connectDatabase();
 
-    if (!isDatabaseConnected()) {
+    if (isDatabaseConnected()) {
+      await prisma.stock.upsert({
+        where: { id: sampleStock.id },
+        update: {},
+        create: sampleStock,
+      });
+    } else {
       vi.spyOn(prisma, '$transaction').mockImplementation(async (arg: any) => {
         if (Array.isArray(arg)) return Promise.all(arg);
         return arg(prisma);

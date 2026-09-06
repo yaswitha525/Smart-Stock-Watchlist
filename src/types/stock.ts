@@ -84,17 +84,35 @@ export const recordSnapshotSchema = z.object({
 export type RecordSnapshotDto = z.infer<typeof recordSnapshotSchema>;
 
 /**
+ * Market status container for NSE/BSE trading sessions in IST.
+ */
+export interface MarketStatusResponse {
+  status: 'OPEN' | 'CLOSED' | 'WEEKEND';
+  isWeekend: boolean;
+  isMarketOpen: boolean;
+  sessionDate: string;
+  sessionDateFormatted: string;
+  sessionDateFormattedShort: string;
+  sessionDateLabel: string;
+  statusMessage: string;
+}
+
+/**
  * Response DTO for a Stock Snapshot.
  */
 export interface StockSnapshotResponse {
   id: string;
   stockId: string;
   price: number;
-  volume: number;
+  previousClose: number;
+  changeAmount: number;
   changePercent: number;
+  direction: 'positive' | 'negative' | 'neutral';
+  volume: number;
   dataTimestamp: string;
   recordedAt: string;
   isStale: boolean;
+  dataFreshnessStatus: 'LIVE' | 'DELAYED' | 'STALE' | 'UNAVAILABLE';
 }
 
 /**
@@ -110,6 +128,7 @@ export interface StockResponse {
   createdAt: string;
   updatedAt: string;
   latestSnapshot?: StockSnapshotResponse | null;
+  marketStatus?: MarketStatusResponse;
 }
 
 /**

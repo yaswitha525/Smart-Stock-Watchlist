@@ -19,9 +19,16 @@ export const StockRow: React.FC<StockRowProps> = ({
   const stock = item.stock;
   if (!stock) return null;
 
-  const currentPrice = deltaAnalysis?.currentPrice;
-  const dayChange = deltaAnalysis?.priceChangePercent ?? 0;
-  const isPositive = dayChange >= 0;
+  const snapshot = stock.latestSnapshot;
+  const hasSnapshot = Boolean(snapshot && snapshot.price !== undefined && snapshot.price !== null);
+  const currentPrice = hasSnapshot ? Number(snapshot!.price) : null;
+  const changePercent = hasSnapshot && snapshot!.changePercent !== undefined && snapshot!.changePercent !== null
+    ? Number(snapshot!.changePercent)
+    : null;
+
+  const isPositive = changePercent !== null && changePercent > 0;
+  const isNegative = changePercent !== null && changePercent < 0;
+  const isNeutral = changePercent !== null && changePercent === 0;
 
   const renderSignalBadge = () => {
     if (!deltaAnalysis || !deltaAnalysis.isMeaningful) return null;
@@ -78,23 +85,27 @@ export const StockRow: React.FC<StockRowProps> = ({
 
       {/* Current Price */}
       <td className="py-3.5 px-4 font-mono font-semibold text-gray-100 text-right">
-        {currentPrice !== undefined && currentPrice !== null
-          ? `₹${currentPrice.toLocaleString('en-IN')}`
-          : '—'}
+        {currentPrice !== null ? `₹${currentPrice.toLocaleString('en-IN')}` : <span className="text-xs text-gray-500 font-sans font-normal">Data unavailable</span>}
       </td>
 
-      {/* Daily / Delta Change % */}
+      {/* Daily / Session Change % */}
       <td className="py-3.5 px-4 text-right font-mono font-semibold">
-        <span
-          className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs ${
-            isPositive
-              ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
-              : 'text-red-400 bg-red-500/10 border border-red-500/20'
-          }`}
-        >
-          {isPositive ? '+' : ''}
-          {dayChange.toFixed(2)}%
-        </span>
+        {changePercent !== null ? (
+          <span
+            className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs ${
+              isPositive
+                ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
+                : isNegative
+                ? 'text-red-400 bg-red-500/10 border border-red-500/20'
+                : 'text-gray-300 bg-white/5 border border-white/10'
+            }`}
+          >
+            {isPositive ? '+' : ''}
+            {changePercent.toFixed(2)}%
+          </span>
+        ) : (
+          <span className="text-xs text-gray-500 font-sans font-normal">Data unavailable</span>
+        )}
       </td>
 
       {/* Signal / Delta Status */}

@@ -2,6 +2,7 @@ import React from 'react';
 import { Activity, Search, User as UserIcon, LogOut, ShieldAlert } from 'lucide-react';
 import { User } from '../types/api';
 import { IS_DEMO_MODE } from '../api/client';
+import { getISTMarketStatus } from '../utils/marketStatus';
 
 interface TopNavigationProps {
   user: User | null;
@@ -22,22 +23,30 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({
   lastUpdatedTimestamp,
   isStale = false,
 }) => {
-  const formatMarketStatus = () => {
-    if (!lastUpdatedTimestamp) {
-      return { label: 'Data Syncing', color: 'bg-amber-500' };
-    }
-    const updated = new Date(lastUpdatedTimestamp);
-    const diffSeconds = Math.floor((Date.now() - updated.getTime()) / 1000);
+  const marketInfo = getISTMarketStatus();
 
-    if (isStale || diffSeconds > 300) {
+  const formatMarketStatus = () => {
+    if (marketInfo.status === 'WEEKEND') {
       return {
-        label: `Data Delayed · Last ${diffSeconds > 60 ? `${Math.floor(diffSeconds / 60)}m` : `${diffSeconds}s`} ago`,
+        label: `Market Closed · ${marketInfo.sessionDateFormatted}`,
+        color: 'bg-amber-500',
+      };
+    }
+    if (marketInfo.status === 'CLOSED') {
+      return {
+        label: `Market Closed · ${marketInfo.sessionDateFormatted}`,
+        color: 'bg-amber-500',
+      };
+    }
+    if (isStale) {
+      return {
+        label: `Data Delayed · ${marketInfo.sessionDateFormatted}`,
         color: 'bg-amber-500 animate-pulse',
       };
     }
     return {
-      label: `NSE Live · ${diffSeconds < 5 ? 'Just updated' : `${diffSeconds}s ago`}`,
-      color: 'bg-emerald-500',
+      label: `NSE Live · ${marketInfo.sessionDateFormatted}`,
+      color: 'bg-emerald-500 animate-pulse',
     };
   };
 

@@ -8,6 +8,8 @@ import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
 import { EmptyState } from '../components/EmptyState';
 
+import { getISTMarketStatus } from '../utils/marketStatus';
+
 interface DashboardProps {
   user: User | null;
   watchlists: Watchlist[];
@@ -34,6 +36,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onRecordVisit,
 }) => {
   const { delta, loading: deltaLoading, error: deltaError, refetch } = useDelta(activeWatchlistId);
+  const marketInfo = getISTMarketStatus();
 
   const handleMarkReviewed = async () => {
     if (!activeWatchlistId) return;
@@ -105,6 +108,26 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </button>
         </div>
       </div>
+
+      {/* IST Market Status Banner (Weekend / Closed Trading Session) */}
+      {marketInfo.status !== 'OPEN' && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between text-xs text-amber-300">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+              <Clock className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-bold text-amber-200 block text-sm">
+                {marketInfo.status === 'WEEKEND' ? 'Weekend — Markets Closed' : 'Market Closed'}
+              </span>
+              <span className="text-amber-300/80">{marketInfo.statusMessage}</span>
+            </div>
+          </div>
+          <span className="hidden sm:inline-block font-mono font-bold text-[11px] px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-200">
+            Session: {marketInfo.sessionDateFormatted}
+          </span>
+        </div>
+      )}
 
       {/* Hero Intelligence Section ("What Changed Since Your Last Visit?") */}
       <section className="space-y-4">

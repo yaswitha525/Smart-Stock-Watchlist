@@ -4,10 +4,18 @@ import { authApi } from '../api/auth.api';
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(() => {
-    const savedUser = localStorage.getItem('auth_user');
-    return savedUser ? JSON.parse(savedUser) : null;
+    try {
+      const savedUser = localStorage.getItem('auth_user');
+      return savedUser && savedUser !== 'undefined' ? JSON.parse(savedUser) : null;
+    } catch {
+      localStorage.removeItem('auth_user');
+      return null;
+    }
   });
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('auth_token'));
+  const [token, setToken] = useState<string | null>(() => {
+    const savedToken = localStorage.getItem('auth_token');
+    return savedToken && savedToken !== 'undefined' ? savedToken : null;
+  });
   const [loading, setLoading] = useState<boolean>(true);
 
   // Sync auth state with localStorage & backend check
@@ -36,10 +44,17 @@ export function useAuth() {
     setLoading(true);
     try {
       const res = await authApi.login(email, pass);
-      setToken(res.token);
-      setUser(res.user);
-      localStorage.setItem('auth_token', res.token);
-      localStorage.setItem('auth_user', JSON.stringify(res.user));
+      const authToken = res.token || (res as any)?.data?.token;
+      const authUser = res.user || (res as any)?.data?.user;
+
+      if (!authToken) {
+        throw new Error('Server did not return a valid authentication token');
+      }
+
+      setToken(authToken);
+      setUser(authUser);
+      localStorage.setItem('auth_token', authToken);
+      localStorage.setItem('auth_user', JSON.stringify(authUser));
       return res;
     } finally {
       setLoading(false);
@@ -50,10 +65,17 @@ export function useAuth() {
     setLoading(true);
     try {
       const res = await authApi.register(name, email, pass);
-      setToken(res.token);
-      setUser(res.user);
-      localStorage.setItem('auth_token', res.token);
-      localStorage.setItem('auth_user', JSON.stringify(res.user));
+      const authToken = res.token || (res as any)?.data?.token;
+      const authUser = res.user || (res as any)?.data?.user;
+
+      if (!authToken) {
+        throw new Error('Server did not return a valid authentication token');
+      }
+
+      setToken(authToken);
+      setUser(authUser);
+      localStorage.setItem('auth_token', authToken);
+      localStorage.setItem('auth_user', JSON.stringify(authUser));
       return res;
     } finally {
       setLoading(false);

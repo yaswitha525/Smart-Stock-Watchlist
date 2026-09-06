@@ -5,6 +5,7 @@ import { NotFoundError, BadRequestError } from '../errors/app-error.js';
 import { IMarketDataProvider, MarketQuoteMetadata } from './market-data/provider.interface.js';
 import { MarketDataProviderFactory } from './market-data/provider.factory.js';
 import { CacheService } from './cache/cache.service.js';
+import { getMarketStatus } from '../utils/market-status.utils.js';
 import {
   StockQueryDto,
   SnapshotQueryDto,
@@ -45,15 +46,36 @@ export class StockService {
     const dataTime = snapshot.dataTimestamp instanceof Date ? snapshot.dataTimestamp.getTime() : new Date(snapshot.dataTimestamp).getTime();
     const isStale = Date.now() - dataTime > config.marketData.staleThresholdMs;
 
+    const price = Number(snapshot.price);
+    const changePercent = Number(snapshot.changePercent || 0);
+    const volume = Number(snapshot.volume || 0);
+
+    const divisor = 1 + (changePercent / 100);
+    const previousClose = divisor !== 0 ? Number((price / divisor).toFixed(2)) : price;
+    const changeAmount = Number((price - previousClose).toFixed(2));
+
+    let direction: 'positive' | 'negative' | 'neutral' = 'neutral';
+    if (changePercent > 0) {
+      direction = 'positive';
+    } else if (changePercent < 0) {
+      direction = 'negative';
+    }
+
+    const dataFreshnessStatus: 'LIVE' | 'DELAYED' | 'STALE' | 'UNAVAILABLE' = isStale ? 'STALE' : 'LIVE';
+
     return {
       id: snapshot.id,
       stockId: snapshot.stockId,
-      price: Number(snapshot.price),
-      volume: Number(snapshot.volume),
-      changePercent: snapshot.changePercent,
+      price,
+      previousClose,
+      changeAmount,
+      changePercent,
+      direction,
+      volume,
       dataTimestamp: snapshot.dataTimestamp instanceof Date ? snapshot.dataTimestamp.toISOString() : new Date(snapshot.dataTimestamp).toISOString(),
       recordedAt: snapshot.recordedAt instanceof Date ? snapshot.recordedAt.toISOString() : new Date(snapshot.recordedAt).toISOString(),
       isStale,
+      dataFreshnessStatus,
     };
   }
 
@@ -68,9 +90,10 @@ export class StockService {
       name: stock.name,
       sector: stock.sector,
       isActive: stock.isActive,
-      createdAt: stock.createdAt.toISOString(),
-      updatedAt: stock.updatedAt.toISOString(),
+      createdAt: stock.createdAt instanceof Date ? stock.createdAt.toISOString() : new Date(stock.createdAt).toISOString(),
+      updatedAt: stock.updatedAt instanceof Date ? stock.updatedAt.toISOString() : new Date(stock.updatedAt).toISOString(),
       latestSnapshot: latestSnapshot ? this.formatSnapshotResponse(latestSnapshot) : null,
+      marketStatus: getMarketStatus(),
     };
   }
 

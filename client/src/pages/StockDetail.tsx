@@ -5,6 +5,8 @@ import { stocksApi } from '../api/stocks.api';
 import { Stock, StockSnapshot } from '../types/api';
 import { LoadingState } from '../components/LoadingState';
 
+import { getISTMarketStatus } from '../utils/marketStatus';
+
 interface StockDetailProps {
   symbol: string | null;
   onClose: () => void;
@@ -16,6 +18,8 @@ export const StockDetail: React.FC<StockDetailProps> = ({ symbol, onClose }) => 
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState<'1D' | '1W' | '1M' | '3M' | '1Y' | 'ALL'>('1M');
 
+  const marketInfo = getISTMarketStatus();
+
   useEffect(() => {
     if (!symbol) return;
     async function loadData() {
@@ -25,8 +29,10 @@ export const StockDetail: React.FC<StockDetailProps> = ({ symbol, onClose }) => 
           stocksApi.getStockBySymbol(symbol!),
           stocksApi.getStockHistory(symbol!, 50),
         ]);
-        setStock(stockRes);
-        setHistory(histRes);
+        const s = (stockRes as any)?.data || stockRes;
+        const h = (histRes as any)?.data || histRes;
+        setStock(s);
+        setHistory(Array.isArray(h) ? h : Array.isArray((h as any)?.items) ? (h as any).items : []);
       } catch (err) {
         console.error('Failed to load stock detail', err);
       } finally {
@@ -38,9 +44,17 @@ export const StockDetail: React.FC<StockDetailProps> = ({ symbol, onClose }) => 
 
   if (!symbol) return null;
 
-  const currentPrice = stock?.latestSnapshot?.price;
-  const dayChange = stock?.latestSnapshot?.changePercent ?? 0;
-  const isPositive = dayChange >= 0;
+  const sessionLabel = stock?.marketStatus?.sessionDateLabel || marketInfo.sessionDateLabel || (marketInfo.isMarketOpen ? 'Today' : marketInfo.sessionDateFormattedShort);
+  const snapshot = stock?.latestSnapshot;
+  const hasSnapshot = Boolean(snapshot && snapshot.price !== undefined && snapshot.price !== null);
+  const currentPrice = hasSnapshot ? Number(snapshot!.price) : (history.length > 0 ? Number(history[0].price) : null);
+  const dayChange = hasSnapshot && snapshot!.changePercent !== undefined && snapshot!.changePercent !== null
+    ? Number(snapshot!.changePercent)
+    : (history.length > 0 && history[0].changePercent !== undefined && history[0].changePercent !== null ? Number(history[0].changePercent) : null);
+
+  const isPositive = dayChange !== null && dayChange > 0;
+  const isNegative = dayChange !== null && dayChange < 0;
+  const isNeutral = dayChange !== null && dayChange === 0;
   const isStale = stock?.latestSnapshot?.isStale;
 
   const chartData = [...history].reverse().map((snap) => ({
@@ -48,8 +62,8 @@ export const StockDetail: React.FC<StockDetailProps> = ({ symbol, onClose }) => 
       hour: '2-digit',
       minute: '2-digit',
     }),
-    price: snap.price,
-    volume: snap.volume,
+    price: Number(snap.price),
+    volume: Number(snap.volume),
   }));
 
   return (
@@ -57,10 +71,10 @@ export const StockDetail: React.FC<StockDetailProps> = ({ symbol, onClose }) => 
       <div className="glass-panel w-full max-w-4xl rounded-2xl border border-white/10 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         
         {/* Header */}
-        <div className="p-6 border-b border-white/10 flex items-start justify-between">
-          <div className="space-y-1">
+        <div className="p-6 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
+          <div>
             <div className="flex items-center space-x-3">
-              <h2 className="text-2xl font-extrabold text-white font-mono tracking-tight">{symbol}</h2>
+              <h3 className="text-2xl font-extrabold text-white font-mono tracking-tight">{stock?.symbol}</h3>
               <span className="text-xs font-mono px-2 py-0.5 rounded bg-white/10 text-gray-300">
                 {stock?.exchange || 'NSE'}
               </span>
@@ -90,23 +104,35 @@ export const StockDetail: React.FC<StockDetailProps> = ({ symbol, onClose }) => 
         ) : (
           <div className="p-6 space-y-6 overflow-y-auto">
             
+            {/* Market Status Banner */}
+            {marketInfo.status !== 'OPEN' && (
+              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 flex items-center space-x-2.5">
+                <Clock className="w-4 h-4 shrink-0 text-amber-400" />
+                <span>{marketInfo.statusMessage}</span>
+              </div>
+            )}
+
             {/* Price & Day Metrics */}
             <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4">
               <div>
                 <div className="text-3xl font-extrabold text-white font-mono">
-                  ₹{currentPrice ? currentPrice.toLocaleString('en-IN') : 'N/A'}
+                  {currentPrice !== null ? `₹${currentPrice.toLocaleString('en-IN')}` : <span className="text-lg text-gray-400 font-sans">Data unavailable</span>}
                 </div>
-                <div
-                  className={`flex items-center space-x-1 text-sm font-bold font-mono mt-1 ${
-                    isPositive ? 'text-emerald-400' : 'text-red-400'
-                  }`}
-                >
-                  {isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                  <span>
-                    {isPositive ? '+' : ''}
-                    {dayChange.toFixed(2)}% Today
-                  </span>
-                </div>
+                {dayChange !== null ? (
+                  <div
+                    className={`flex items-center space-x-1 text-sm font-bold font-mono mt-1 ${
+                      isPositive ? 'text-emerald-400' : isNegative ? 'text-red-400' : 'text-gray-300'
+                    }`}
+                  >
+                    {isPositive ? <TrendingUp className="w-4 h-4" /> : isNegative ? <TrendingDown className="w-4 h-4" /> : null}
+                    <span>
+                      {isPositive ? '+' : ''}
+                      {dayChange.toFixed(2)}% {sessionLabel}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="text-xs text-gray-500 font-sans mt-1">Data unavailable</div>
+                )}
               </div>
 
               {/* Timeframe Controls */}
@@ -199,27 +225,32 @@ export const StockDetail: React.FC<StockDetailProps> = ({ symbol, onClose }) => 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    {history.slice(0, 5).map((snap) => (
-                      <tr key={snap.id} className="hover:bg-white/5">
-                        <td className="py-2.5 px-4 text-gray-300">
-                          {new Date(snap.dataTimestamp || snap.recordedAt).toLocaleString('en-IN')}
-                        </td>
-                        <td className="py-2.5 px-4 text-right font-bold text-gray-100">
-                          ₹{snap.price.toFixed(2)}
-                        </td>
-                        <td
-                          className={`py-2.5 px-4 text-right font-bold ${
-                            snap.changePercent >= 0 ? 'text-emerald-400' : 'text-red-400'
-                          }`}
-                        >
-                          {snap.changePercent >= 0 ? '+' : ''}
-                          {snap.changePercent.toFixed(2)}%
-                        </td>
-                        <td className="py-2.5 px-4 text-right text-gray-400">
-                          {snap.volume.toLocaleString('en-IN')}
-                        </td>
-                      </tr>
-                    ))}
+                    {history.slice(0, 10).map((snap) => {
+                      const numPrice = Number(snap.price);
+                      const numChange = Number(snap.changePercent || 0);
+                      const numVolume = Number(snap.volume || 0);
+                      return (
+                        <tr key={snap.id} className="hover:bg-white/5">
+                          <td className="py-2.5 px-4 text-gray-300">
+                            {new Date(snap.dataTimestamp || snap.recordedAt).toLocaleString('en-IN')}
+                          </td>
+                          <td className="py-2.5 px-4 text-right font-bold text-gray-100">
+                            ₹{numPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td
+                            className={`py-2.5 px-4 text-right font-bold ${
+                              numChange >= 0 ? 'text-emerald-400' : 'text-red-400'
+                            }`}
+                          >
+                            {numChange >= 0 ? '+' : ''}
+                            {numChange.toFixed(2)}%
+                          </td>
+                          <td className="py-2.5 px-4 text-right text-gray-400">
+                            {numVolume.toLocaleString('en-IN')}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

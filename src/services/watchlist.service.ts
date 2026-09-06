@@ -1,5 +1,6 @@
 import { prisma } from '../db/prisma.js';
 import { CacheService } from './cache/cache.service.js';
+import { StockService } from './stock.service.js';
 import {
   NotFoundError,
   BadRequestError,
@@ -57,17 +58,10 @@ export class WatchlistService {
               id: item.id,
               watchlistId: item.watchlistId,
               stockId: item.stockId,
-              addedAt: item.addedAt.toISOString(),
+              addedAt: item.addedAt instanceof Date ? item.addedAt.toISOString() : new Date(item.addedAt).toISOString(),
               ...(item.stock
                 ? {
-                    stock: {
-                      id: item.stock.id,
-                      symbol: item.stock.symbol,
-                      exchange: item.stock.exchange,
-                      name: item.stock.name,
-                      sector: item.stock.sector,
-                      isActive: item.stock.isActive,
-                    },
+                    stock: StockService.formatStockResponse(item.stock, item.stock.snapshots?.[0]),
                   }
                 : {}),
             })),
@@ -140,7 +134,14 @@ export class WatchlistService {
       include: {
         items: {
           include: {
-            stock: true,
+            stock: {
+              include: {
+                snapshots: {
+                  orderBy: { dataTimestamp: 'desc' },
+                  take: 1,
+                },
+              },
+            },
           },
           orderBy: { addedAt: 'asc' },
         },
@@ -273,7 +274,14 @@ export class WatchlistService {
             stockId: stock.id,
           },
           include: {
-            stock: true,
+            stock: {
+              include: {
+                snapshots: {
+                  orderBy: { dataTimestamp: 'desc' },
+                  take: 1,
+                },
+              },
+            },
           },
         }),
         prisma.watchlist.update({
@@ -288,15 +296,8 @@ export class WatchlistService {
         id: item.id,
         watchlistId: item.watchlistId,
         stockId: item.stockId,
-        addedAt: item.addedAt.toISOString(),
-        stock: {
-          id: item.stock.id,
-          symbol: item.stock.symbol,
-          exchange: item.stock.exchange,
-          name: item.stock.name,
-          sector: item.stock.sector,
-          isActive: item.stock.isActive,
-        },
+        addedAt: item.addedAt instanceof Date ? item.addedAt.toISOString() : new Date(item.addedAt).toISOString(),
+        stock: item.stock ? StockService.formatStockResponse(item.stock, item.stock.snapshots?.[0]) : undefined,
       };
     } catch (error: any) {
       if (typeof error === 'object' && error !== null && error.code === 'P2002') {

@@ -109,11 +109,12 @@ export const stocksApi = {
     if (IS_DEMO_MODE) {
       return DEMO_STOCKS.find((s) => s.symbol.toUpperCase() === symbol.toUpperCase()) || DEMO_STOCKS[0];
     }
-    const response = await apiClient.get<Stock>(`/stocks/${symbol.toUpperCase()}`);
-    return response.data;
+    const response = await apiClient.get(`/stocks/symbol/${symbol.toUpperCase()}`);
+    const data = (response.data as any)?.data || response.data;
+    return data;
   },
 
-  async getStockHistory(symbol: string, limit = 50): Promise<StockSnapshot[]> {
+  async getStockHistory(symbolOrId: string, limit = 50): Promise<StockSnapshot[]> {
     if (IS_DEMO_MODE) {
       const basePrice = 2900;
       return Array.from({ length: 15 }).map((_, i) => ({
@@ -127,10 +128,20 @@ export const stocksApi = {
         isStale: false,
       }));
     }
-    const response = await apiClient.get<StockSnapshot[]>(`/stocks/${symbol.toUpperCase()}/history`, {
-      params: { limit },
+
+    let stockId = symbolOrId;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(symbolOrId);
+    if (!isUuid) {
+      const stock = await this.getStockBySymbol(symbolOrId);
+      if (!stock || !stock.id) return [];
+      stockId = stock.id;
+    }
+
+    const response = await apiClient.get(`/stocks/${stockId}/snapshots`, {
+      params: { limit, order: 'desc' },
     });
-    return response.data;
+    const data = (response.data as any)?.data || response.data;
+    return Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
   },
 
   async refreshMarketData(): Promise<void> {

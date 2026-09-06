@@ -48,12 +48,13 @@ export class RealMarketDataProvider implements IMarketDataProvider {
   }
 
   /**
-   * Fetches a live market quote for a single stock symbol.
+   * Fetches a live market quote for a single stock symbol from real market endpoints.
+   * NEVER invents or fabricates fake prices on failure.
    */
   public async fetchQuote(symbol: string, exchange = 'NSE'): Promise<MarketQuoteMetadata> {
     this.ensureConfigured();
 
-    const uppercaseSymbol = symbol.toUpperCase().trim();
+    const uppercaseSymbol = symbol.toUpperCase().trim().replace(/\.(NS|BO)$/, '');
     const uppercaseExchange = exchange.toUpperCase().trim();
 
     if (!uppercaseSymbol) {
@@ -66,52 +67,107 @@ export class RealMarketDataProvider implements IMarketDataProvider {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
 
-    let response: Response;
+    let response: Response | null = null;
+    let fetchError: any = null;
+
     try {
       response = await fetch(requestUrl, {
         signal: controller.signal,
         headers: {
           Accept: 'application/json',
+          'X-API-Key': this.apiKey!,
           'User-Agent': 'SmartMarketWatchlist/1.0',
         },
       });
     } catch (err: any) {
-      clearTimeout(timer);
+      fetchError = err;
       if (err.name === 'AbortError') {
         logger.error({ url: sanitizedUrl }, 'Market data provider request timed out');
         throw new MarketDataTimeoutError(`Request timed out fetching market quote for ${uppercaseSymbol}`);
       }
-      logger.error({ url: sanitizedUrl, err: err.message }, 'Network or DNS failure reaching market data provider');
-      throw new MarketDataProviderError(`Network failure reaching market data provider: ${err.message}`, 502);
     } finally {
       clearTimeout(timer);
     }
 
-    if (!response.ok) {
+    if (response && response.ok) {
+      let data: any;
+      try {
+        data = await response.json();
+        return this.parseAndMapQuote(uppercaseSymbol, uppercaseExchange, data);
+      } catch (parseErr: any) {
+        logger.error({ url: sanitizedUrl }, 'Malformed JSON returned by market data provider');
+        throw new MarketDataValidationError(`Malformed JSON response received from market data provider for ${uppercaseSymbol}`);
+      }
+    }
+
+    if (response) {
       if (response.status === 401 || response.status === 403) {
         logger.error({ url: sanitizedUrl, status: response.status }, 'Authentication failed for market data provider');
         throw new MarketDataProviderError('Market data provider authentication failed (Invalid API key)', 401);
-      }
-      if (response.status === 404) {
-        throw new NotFoundError(`Stock symbol ${uppercaseSymbol} not found on market data provider`);
       }
       if (response.status === 429) {
         logger.warn({ url: sanitizedUrl }, 'Rate limit exceeded on market data provider');
         throw new MarketDataRateLimitError('Market data provider rate limit exceeded');
       }
-      logger.error({ url: sanitizedUrl, status: response.status }, 'Market data provider returned server error');
-      throw new MarketDataProviderError(`Market data provider HTTP ${response.status} server error`, 502);
+      if (response.status >= 500) {
+        logger.error({ url: sanitizedUrl, status: response.status }, 'Market data provider returned server error');
+        throw new MarketDataProviderError(`Market data provider HTTP ${response.status} server error`, 502);
+      }
     }
 
-    let data: any;
+    // 2. Fallback to live real-time chart API for NSE/BSE stock symbols
+    const controller2 = new AbortController();
+    const timer2 = setTimeout(() => controller2.abort(), this.timeoutMs);
+
     try {
-      data = await response.json();
-    } catch (parseErr: any) {
-      logger.error({ url: sanitizedUrl }, 'Malformed JSON returned by market data provider');
-      throw new MarketDataValidationError(`Malformed JSON response received from market data provider for ${uppercaseSymbol}`);
+      const liveSymbol = `${uppercaseSymbol}.NS`;
+      const liveUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(liveSymbol)}?range=1d&interval=1m`;
+      const liveRes = await fetch(liveUrl, {
+        signal: controller2.signal,
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+      });
+
+      if (liveRes.ok) {
+        const data: any = await liveRes.json();
+        const meta = data?.chart?.result?.[0]?.meta;
+        if (meta && typeof meta.regularMarketPrice === 'number' && !isNaN(meta.regularMarketPrice) && meta.regularMarketPrice > 0) {
+          const price = Number(meta.regularMarketPrice);
+          const prevClose = Number(meta.chartPreviousClose || price);
+          const volume = Math.max(0, Math.floor(Number(meta.regularMarketVolume || 0)));
+          const changePercent = prevClose > 0 ? Number((((price - prevClose) / prevClose) * 100).toFixed(2)) : 0;
+          const dataTimestamp = meta.regularMarketTime ? new Date(meta.regularMarketTime * 1000) : new Date();
+
+          return {
+            symbol: uppercaseSymbol,
+            exchange: uppercaseExchange,
+            price,
+            volume,
+            changePercent,
+            dataTimestamp,
+            providerId: this.providerId,
+          };
+        }
+      }
+    } catch (err: any) {
+      // Continue to final error throwing
+    } finally {
+      clearTimeout(timer2);
     }
 
-    return this.parseAndMapQuote(uppercaseSymbol, uppercaseExchange, data);
+    if (response && response.status === 404) {
+      throw new NotFoundError(`Stock symbol ${uppercaseSymbol} not found on market data provider`);
+    }
+
+    if (fetchError) {
+      logger.error({ url: sanitizedUrl, err: fetchError.message }, 'Network or DNS failure reaching market data provider');
+      throw new MarketDataProviderError(`Network failure reaching market data provider: ${fetchError.message}`, 502);
+    }
+
+    logger.error({ url: sanitizedUrl, status: response?.status }, 'Market data provider returned server error');
+    throw new MarketDataProviderError(`Market data provider HTTP ${response?.status || 500} server error`, 502);
   }
 
   /**

@@ -9,6 +9,32 @@ export interface AuthResponse {
   token: string;
 }
 
+export interface MarketStatus {
+  status: 'OPEN' | 'CLOSED' | 'WEEKEND';
+  isWeekend: boolean;
+  isMarketOpen: boolean;
+  sessionDate: string;
+  sessionDateFormatted: string;
+  sessionDateFormattedShort: string;
+  sessionDateLabel: string;
+  statusMessage: string;
+}
+
+export interface StockSnapshot {
+  id: string;
+  stockId: string;
+  price: number;
+  previousClose?: number;
+  changeAmount?: number;
+  changePercent: number;
+  direction?: 'positive' | 'negative' | 'neutral';
+  volume: number;
+  dataTimestamp: string;
+  recordedAt: string;
+  isStale: boolean;
+  dataFreshnessStatus?: 'LIVE' | 'DELAYED' | 'STALE' | 'UNAVAILABLE';
+}
+
 export interface StockDetail {
   id: string;
   symbol: string;
@@ -16,6 +42,7 @@ export interface StockDetail {
   name: string;
   sector: string | null;
   isActive: boolean;
+  latestSnapshot?: StockSnapshot | null;
 }
 
 export interface WatchlistItem {
@@ -23,7 +50,7 @@ export interface WatchlistItem {
   watchlistId: string;
   stockId: string;
   addedAt: string;
-  stock?: StockDetail;
+  stock?: StockDetail & { latestSnapshot?: StockSnapshot | null };
 }
 
 export interface Watchlist {
@@ -38,17 +65,6 @@ export interface Watchlist {
   lastVisitedAt?: string | null;
 }
 
-export interface StockSnapshot {
-  id: string;
-  stockId: string;
-  price: number;
-  volume: number;
-  changePercent: number;
-  dataTimestamp: string;
-  recordedAt: string;
-  isStale: boolean;
-}
-
 export interface Stock {
   id: string;
   symbol: string;
@@ -59,6 +75,7 @@ export interface Stock {
   createdAt: string;
   updatedAt: string;
   latestSnapshot?: StockSnapshot | null;
+  marketStatus?: MarketStatus;
 }
 
 export interface PaginatedStocks {

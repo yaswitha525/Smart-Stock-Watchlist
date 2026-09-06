@@ -64,20 +64,20 @@ describe('Phase 6 Meaningful-Change Detection Algorithm Tests', () => {
 
   const mockSnapshotsDB: any[] = [
     // GAIN_STOCK: 100 -> 105 (+5% gain)
-    { id: 's1', stockId: mockStockGain.id, price: 100, volume: 1000000, changePercent: 0, dataTimestamp: pastTime, recordedAt: pastTime },
-    { id: 's2', stockId: mockStockGain.id, price: 105, volume: 1000000, changePercent: 5, dataTimestamp: currentTime, recordedAt: currentTime },
+    { id: '11111111-1111-1111-1111-000000000001', stockId: mockStockGain.id, price: 100, volume: 1000000, changePercent: 0, dataTimestamp: pastTime, recordedAt: pastTime },
+    { id: '11111111-1111-1111-1111-000000000002', stockId: mockStockGain.id, price: 105, volume: 1000000, changePercent: 5, dataTimestamp: currentTime, recordedAt: currentTime },
 
     // DROP_STOCK: 100 -> 95 (-5% drop)
-    { id: 's3', stockId: mockStockDrop.id, price: 100, volume: 1000000, changePercent: 0, dataTimestamp: pastTime, recordedAt: pastTime },
-    { id: 's4', stockId: mockStockDrop.id, price: 95, volume: 1000000, changePercent: -5, dataTimestamp: currentTime, recordedAt: currentTime },
+    { id: '22222222-2222-2222-2222-000000000001', stockId: mockStockDrop.id, price: 100, volume: 1000000, changePercent: 0, dataTimestamp: pastTime, recordedAt: pastTime },
+    { id: '22222222-2222-2222-2222-000000000002', stockId: mockStockDrop.id, price: 95, volume: 1000000, changePercent: -5, dataTimestamp: currentTime, recordedAt: currentTime },
 
     // SURGE_STOCK: 100 -> 100 (0% price), volume 1M -> 1.8M (+80% volume surge)
-    { id: 's5', stockId: mockStockSurge.id, price: 100, volume: 1000000, changePercent: 0, dataTimestamp: pastTime, recordedAt: pastTime },
-    { id: 's6', stockId: mockStockSurge.id, price: 100, volume: 1800000, changePercent: 0, dataTimestamp: currentTime, recordedAt: currentTime },
+    { id: '33333333-3333-3333-3333-000000000001', stockId: mockStockSurge.id, price: 100, volume: 1000000, changePercent: 0, dataTimestamp: pastTime, recordedAt: pastTime },
+    { id: '33333333-3333-3333-3333-000000000002', stockId: mockStockSurge.id, price: 100, volume: 1800000, changePercent: 0, dataTimestamp: currentTime, recordedAt: currentTime },
 
     // NEUTRAL_STOCK: 100 -> 100.5 (+0.5% price), volume 1M -> 1.05M (+5% volume)
-    { id: 's7', stockId: mockStockNeutral.id, price: 100, volume: 1000000, changePercent: 0, dataTimestamp: pastTime, recordedAt: pastTime },
-    { id: 's8', stockId: mockStockNeutral.id, price: 100.5, volume: 1050000, changePercent: 0.5, dataTimestamp: currentTime, recordedAt: currentTime },
+    { id: '44444444-4444-4444-4444-000000000001', stockId: mockStockNeutral.id, price: 100, volume: 1000000, changePercent: 0, dataTimestamp: pastTime, recordedAt: pastTime },
+    { id: '44444444-4444-4444-4444-000000000002', stockId: mockStockNeutral.id, price: 100.5, volume: 1050000, changePercent: 0.5, dataTimestamp: currentTime, recordedAt: currentTime },
   ];
 
   const mockWatchlistsDB = new Map<string, any>();
@@ -94,14 +94,12 @@ describe('Phase 6 Meaningful-Change Detection Algorithm Tests', () => {
     process.env.JWT_SECRET = process.env.JWT_SECRET || 'test_jwt_secret_key_groww_code_2026';
     await connectDatabase();
 
-    // Prisma mocks if DB is offline in runner
-    if (!isDatabaseConnected()) {
-      vi.spyOn(prisma, '$transaction').mockImplementation(async (arg: any) => {
-        if (Array.isArray(arg)) {
-          return Promise.all(arg);
-        }
-        return arg(prisma);
-      });
+    vi.spyOn(prisma, '$transaction').mockImplementation(async (arg: any) => {
+      if (Array.isArray(arg)) {
+        return Promise.all(arg);
+      }
+      return arg(prisma);
+    });
 
       vi.spyOn(prisma.watchlist, 'create').mockImplementation(async (args: any) => {
         const id = '123e4567-e89b-12d3-a456-426614174000';
@@ -215,7 +213,6 @@ describe('Phase 6 Meaningful-Change Detection Algorithm Tests', () => {
         mockVisitsDB.set(key, visit);
         return visit as any;
       });
-    }
 
     // Register Users
     const userA = await AuthService.register({
@@ -286,13 +283,11 @@ describe('Phase 6 Meaningful-Change Detection Algorithm Tests', () => {
     it('5. Simultaneous SIGNIFICANT_GAIN + VOLUME_SURGE signals support', async () => {
       // Simulate stock with +5% price AND +80% volume
       const mockStockBoth = 'both-stock-id';
-      if (!isDatabaseConnected()) {
-        mockSnapshotsDB.push(
-          { id: 'sb1', stockId: mockStockBoth, price: 100, volume: 1000000, changePercent: 0, dataTimestamp: pastTime, recordedAt: pastTime },
-          { id: 'sb2', stockId: mockStockBoth, price: 110, volume: 2000000, changePercent: 10, dataTimestamp: currentTime, recordedAt: currentTime }
-        );
-        mockStocksMap.set(mockStockBoth, { id: mockStockBoth, symbol: 'BOTH_STOCK', exchange: 'NSE', name: 'Both Stock', sector: 'IT', isActive: true });
-      }
+      mockSnapshotsDB.push(
+        { id: 'sb1', stockId: mockStockBoth, price: 100, volume: 1000000, changePercent: 0, dataTimestamp: pastTime, recordedAt: pastTime },
+        { id: 'sb2', stockId: mockStockBoth, price: 110, volume: 2000000, changePercent: 10, dataTimestamp: currentTime, recordedAt: currentTime }
+      );
+      mockStocksMap.set(mockStockBoth, { id: mockStockBoth, symbol: 'BOTH_STOCK', exchange: 'NSE', name: 'Both Stock', sector: 'IT', isActive: true });
 
       const delta = await DeltaService.calculateStockDelta(mockStockBoth, refTime);
       expect(delta.signals).toContain('SIGNIFICANT_GAIN');
@@ -304,13 +299,11 @@ describe('Phase 6 Meaningful-Change Detection Algorithm Tests', () => {
 
     it('6. Zero baseline volume division-by-zero protection (returns volumeChangePercent: null)', async () => {
       const zeroVolStockId = 'zero-vol-stock-id';
-      if (!isDatabaseConnected()) {
-        mockSnapshotsDB.push(
-          { id: 'zv1', stockId: zeroVolStockId, price: 100, volume: 0, changePercent: 0, dataTimestamp: pastTime, recordedAt: pastTime },
-          { id: 'zv2', stockId: zeroVolStockId, price: 100, volume: 500000, changePercent: 0, dataTimestamp: currentTime, recordedAt: currentTime }
-        );
-        mockStocksMap.set(zeroVolStockId, { id: zeroVolStockId, symbol: 'ZERO_VOL', exchange: 'NSE', name: 'Zero Vol', sector: 'IT', isActive: true });
-      }
+      mockSnapshotsDB.push(
+        { id: 'zv1', stockId: zeroVolStockId, price: 100, volume: 0, changePercent: 0, dataTimestamp: pastTime, recordedAt: pastTime },
+        { id: 'zv2', stockId: zeroVolStockId, price: 100, volume: 500000, changePercent: 0, dataTimestamp: currentTime, recordedAt: currentTime }
+      );
+      mockStocksMap.set(zeroVolStockId, { id: zeroVolStockId, symbol: 'ZERO_VOL', exchange: 'NSE', name: 'Zero Vol', sector: 'IT', isActive: true });
 
       const delta = await DeltaService.calculateStockDelta(zeroVolStockId, refTime);
       expect(delta.volumeChangePercent).toBeNull();
@@ -319,12 +312,10 @@ describe('Phase 6 Meaningful-Change Detection Algorithm Tests', () => {
 
     it('7. Missing baseline snapshot graceful handling (no NaN/Infinity)', async () => {
       const noBaseStockId = 'no-base-stock-id';
-      if (!isDatabaseConnected()) {
-        mockSnapshotsDB.push(
-          { id: 'nb1', stockId: noBaseStockId, price: 200, volume: 50000, changePercent: 0, dataTimestamp: currentTime, recordedAt: currentTime }
-        );
-        mockStocksMap.set(noBaseStockId, { id: noBaseStockId, symbol: 'NO_BASE', exchange: 'NSE', name: 'No Base', sector: 'IT', isActive: true });
-      }
+      mockSnapshotsDB.push(
+        { id: 'nb1', stockId: noBaseStockId, price: 200, volume: 50000, changePercent: 0, dataTimestamp: currentTime, recordedAt: currentTime }
+      );
+      mockStocksMap.set(noBaseStockId, { id: noBaseStockId, symbol: 'NO_BASE', exchange: 'NSE', name: 'No Base', sector: 'IT', isActive: true });
 
       const delta = await DeltaService.calculateStockDelta(noBaseStockId, refTime);
       expect(delta.baselinePrice).toBeNull();
