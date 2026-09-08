@@ -393,7 +393,7 @@ describe('Phase 6 Meaningful-Change Detection Algorithm Tests', () => {
 
   describe('GET /api/v1/stocks/:id/delta (Single Stock Delta API)', () => {
     it('should calculate single stock delta against reference timestamp', async () => {
-      const response = await request(app).get(`/api/v1/stocks/${mockStockGain.id}/delta`);
+      const response = await request(app).get(`/api/v1/stocks/${mockStockGain.id}/delta?since=2026-09-05T00:00:00.000Z`);
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);

@@ -89,6 +89,7 @@ export class RealMarketDataProvider implements IMarketDataProvider {
       clearTimeout(timer);
     }
 
+    // 2. Try primary market data provider response if successful
     if (response && response.ok) {
       let data: any;
       try {
@@ -101,10 +102,6 @@ export class RealMarketDataProvider implements IMarketDataProvider {
     }
 
     if (response) {
-      if (response.status === 401 || response.status === 403) {
-        logger.error({ url: sanitizedUrl, status: response.status }, 'Authentication failed for market data provider');
-        throw new MarketDataProviderError('Market data provider authentication failed (Invalid API key)', 401);
-      }
       if (response.status === 429) {
         logger.warn({ url: sanitizedUrl }, 'Rate limit exceeded on market data provider');
         throw new MarketDataRateLimitError('Market data provider rate limit exceeded');
@@ -115,12 +112,12 @@ export class RealMarketDataProvider implements IMarketDataProvider {
       }
     }
 
-    // 2. Fallback to live real-time chart API for NSE/BSE stock symbols
+    // 3. Live real-time chart fallback for Indian NSE/BSE stock symbols
     const controller2 = new AbortController();
     const timer2 = setTimeout(() => controller2.abort(), this.timeoutMs);
 
     try {
-      const liveSymbol = `${uppercaseSymbol}.NS`;
+      const liveSymbol = uppercaseExchange === 'BSE' ? `${uppercaseSymbol}.BO` : `${uppercaseSymbol}.NS`;
       const liveUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(liveSymbol)}?range=1d&interval=1m`;
       const liveRes = await fetch(liveUrl, {
         signal: controller2.signal,
@@ -152,13 +149,19 @@ export class RealMarketDataProvider implements IMarketDataProvider {
         }
       }
     } catch (err: any) {
-      // Continue to final error throwing
+      // Continue to error handling below
     } finally {
       clearTimeout(timer2);
     }
 
-    if (response && response.status === 404) {
-      throw new NotFoundError(`Stock symbol ${uppercaseSymbol} not found on market data provider`);
+    if (response) {
+      if (response.status === 401 || response.status === 403) {
+        logger.error({ url: sanitizedUrl, status: response.status }, 'Authentication failed for market data provider');
+        throw new MarketDataProviderError('Market data provider authentication failed (Invalid API key)', 401);
+      }
+      if (response.status === 404) {
+        throw new NotFoundError(`Stock symbol ${uppercaseSymbol} not found on market data provider`);
+      }
     }
 
     if (fetchError) {
