@@ -78,10 +78,18 @@ export const StockDetail: React.FC<StockDetailProps> = ({ symbol, onClose }) => 
               <span className="text-xs font-mono px-2 py-0.5 rounded bg-white/10 text-gray-300">
                 {stock?.exchange || 'NSE'}
               </span>
-              {isStale && (
-                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              {snapshot?.dataFreshnessStatus === 'MOCK' ? (
+                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono">
+                  <span>MOCK MODE</span>
+                </span>
+              ) : isStale ? (
+                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono">
                   <AlertTriangle className="w-3 h-3" />
                   <span>Stale Snapshot</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
+                  <span>LIVE</span>
                 </span>
               )}
             </div>

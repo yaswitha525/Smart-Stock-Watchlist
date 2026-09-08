@@ -112,7 +112,7 @@ export interface StockSnapshotResponse {
   dataTimestamp: string;
   recordedAt: string;
   isStale: boolean;
-  dataFreshnessStatus: 'LIVE' | 'DELAYED' | 'STALE' | 'UNAVAILABLE';
+  dataFreshnessStatus: 'LIVE' | 'DELAYED' | 'STALE' | 'UNAVAILABLE' | 'MOCK';
 }
 
 /**

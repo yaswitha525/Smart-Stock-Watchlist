@@ -145,6 +145,7 @@ export class RealMarketDataProvider implements IMarketDataProvider {
             changePercent,
             dataTimestamp,
             providerId: this.providerId,
+            previousTradingClose: prevClose,
           };
         }
       }
@@ -289,5 +290,78 @@ export class RealMarketDataProvider implements IMarketDataProvider {
       dataTimestamp,
       providerId: this.providerId,
     };
+  }
+
+  /**
+   * Fetches real historical daily market quote series for a stock symbol from live market endpoints.
+   */
+  public async fetchHistoricalQuotes(
+    symbol: string,
+    exchange = 'NSE',
+    range = '1mo'
+  ): Promise<MarketQuoteMetadata[]> {
+    const uppercaseSymbol = symbol.toUpperCase().trim().replace(/\.(NS|BO)$/, '');
+    const uppercaseExchange = exchange.toUpperCase().trim();
+
+    const liveSymbol = uppercaseExchange === 'BSE' ? `${uppercaseSymbol}.BO` : `${uppercaseSymbol}.NS`;
+    const liveUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(liveSymbol)}?range=${encodeURIComponent(range)}&interval=1d`;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    try {
+      const res = await fetch(liveUrl, {
+        signal: controller.signal,
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+      });
+
+      if (res.ok) {
+        const data: any = await res.json();
+        const result = data?.chart?.result?.[0];
+        const timestamps: number[] = result?.timestamp || [];
+        const quotes = result?.indicators?.quote?.[0] || {};
+        const closes: (number | null)[] = quotes.close || [];
+        const volumes: (number | null)[] = quotes.volume || [];
+
+        const series: MarketQuoteMetadata[] = [];
+        for (let i = 0; i < timestamps.length; i++) {
+          const rawPrice = closes[i];
+          const rawVolume = volumes[i];
+          const ts = timestamps[i];
+
+          if (rawPrice !== null && rawPrice !== undefined && typeof rawPrice === 'number' && !isNaN(rawPrice) && rawPrice > 0) {
+            const price = Number(rawPrice.toFixed(2));
+            const volume = Math.max(0, Math.floor(Number(rawVolume || 0)));
+            const prevClose = i > 0 && closes[i - 1] ? Number(closes[i - 1]!.toFixed(2)) : price;
+            const changePercent = prevClose > 0 ? Number((((price - prevClose) / prevClose) * 100).toFixed(2)) : 0;
+            const dataTimestamp = new Date(ts * 1000);
+
+            series.push({
+              symbol: uppercaseSymbol,
+              exchange: uppercaseExchange,
+              price,
+              volume,
+              changePercent,
+              dataTimestamp,
+              providerId: this.providerId,
+              previousTradingClose: prevClose,
+            });
+          }
+        }
+
+        if (series.length > 0) {
+          return series;
+        }
+      }
+    } catch (err: any) {
+      logger.warn({ symbol: uppercaseSymbol, error: err.message }, 'Failed to fetch historical quotes from live market endpoint');
+    } finally {
+      clearTimeout(timer);
+    }
+
+    return [];
   }
 }

@@ -4,6 +4,7 @@ import { logger } from '../config/logger.js';
 import { NotFoundError, BadRequestError } from '../errors/app-error.js';
 import { IMarketDataProvider, MarketQuoteMetadata } from './market-data/provider.interface.js';
 import { MarketDataProviderFactory } from './market-data/provider.factory.js';
+import { RealMarketDataProvider } from './market-data/real-market-data.provider.js';
 import { CacheService } from './cache/cache.service.js';
 import { getMarketStatus } from '../utils/market-status.utils.js';
 import {
@@ -51,7 +52,7 @@ export class StockService {
     const volume = Number(snapshot.volume || 0);
 
     const divisor = 1 + (changePercent / 100);
-    const previousClose = divisor !== 0 ? Number((price / divisor).toFixed(2)) : price;
+    const previousClose = snapshot.previousClose ? Number(snapshot.previousClose) : (divisor !== 0 ? Number((price / divisor).toFixed(2)) : price);
     const changeAmount = Number((price - previousClose).toFixed(2));
 
     let direction: 'positive' | 'negative' | 'neutral' = 'neutral';
@@ -61,7 +62,10 @@ export class StockService {
       direction = 'negative';
     }
 
-    const dataFreshnessStatus: 'LIVE' | 'DELAYED' | 'STALE' | 'UNAVAILABLE' = isStale ? 'STALE' : 'LIVE';
+    let dataFreshnessStatus: 'LIVE' | 'DELAYED' | 'STALE' | 'UNAVAILABLE' | 'MOCK' = isStale ? 'STALE' : 'LIVE';
+    if (config.marketData.provider === 'mock') {
+      dataFreshnessStatus = 'MOCK';
+    }
 
     return {
       id: snapshot.id,
@@ -381,5 +385,52 @@ export class StockService {
       failed,
       snapshots: createdSnapshots,
     };
+  }
+
+  /**
+   * Fetches real historical daily market quote series and saves real daily closing snapshots into the database.
+   * Preserves all user accounts, watchlists, and user settings.
+   */
+  public static async seedOrRefreshStockHistory(stockId: string): Promise<number> {
+    const stock = await prisma.stock.findUnique({
+      where: { id: stockId },
+    });
+
+    if (!stock) {
+      return 0;
+    }
+
+    try {
+      const realProvider = new RealMarketDataProvider();
+      const historicalQuotes = await realProvider.fetchHistoricalQuotes(stock.symbol, stock.exchange, '1mo');
+      if (historicalQuotes && historicalQuotes.length > 0) {
+        // Delete old snapshots for this specific stock safely without resetting users or watchlists
+        await prisma.stockSnapshot.deleteMany({
+          where: { stockId: stock.id },
+        });
+
+        const dataToInsert = historicalQuotes.map((q) => ({
+          stockId: stock.id,
+          price: q.price,
+          volume: BigInt(q.volume),
+          changePercent: q.changePercent,
+          dataTimestamp: q.dataTimestamp,
+          recordedAt: q.dataTimestamp,
+        }));
+
+        await prisma.stockSnapshot.createMany({
+          data: dataToInsert,
+        });
+
+        await CacheService.delByPattern('stock:*');
+        await CacheService.delByPattern('delta:*');
+
+        return historicalQuotes.length;
+      }
+    } catch (err: any) {
+      logger.warn({ stockId, symbol: stock.symbol, err: err.message }, 'Could not fetch real history for stock');
+    }
+
+    return 0;
   }
 }

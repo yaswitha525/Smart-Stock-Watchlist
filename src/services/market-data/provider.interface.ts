@@ -9,6 +9,7 @@ export interface MarketQuoteMetadata {
   changePercent: number;
   dataTimestamp: Date;
   providerId: string;
+  previousTradingClose?: number;
 }
 
 /**
@@ -31,5 +32,14 @@ export interface IMarketDataProvider {
    */
   fetchBatchQuotes(
     stocks: { symbol: string; exchange?: string }[]
+  ): Promise<MarketQuoteMetadata[]>;
+
+  /**
+   * Fetches historical daily market quotes for a stock symbol across a given timeframe range.
+   */
+  fetchHistoricalQuotes?(
+    symbol: string,
+    exchange?: string,
+    range?: string
   ): Promise<MarketQuoteMetadata[]>;
 }

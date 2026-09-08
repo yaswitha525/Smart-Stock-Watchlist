@@ -8,15 +8,15 @@ interface StockBaseline {
 
 const STOCK_BASELINES: Record<string, StockBaseline> = {
   RELIANCE: { price: 2950.50, volume: 5420000, changePercent: 1.25 },
-  TCS: { price: 4120.00, volume: 2150000, changePercent: -0.45 },
-  INFY: { price: 1850.75, volume: 3890000, changePercent: 0.85 },
-  HDFCBANK: { price: 1680.20, volume: 8900000, changePercent: -0.15 },
-  ICICIBANK: { price: 1230.40, volume: 6100000, changePercent: 1.10 },
-  SBIN: { price: 820.60, volume: 12400000, changePercent: 2.30 },
-  BHARTIARTL: { price: 1540.10, volume: 4300000, changePercent: 0.50 },
-  ITC: { price: 490.80, volume: 15200000, changePercent: -0.20 },
-  KOTAKBANK: { price: 1780.30, volume: 2800000, changePercent: 0.10 },
-  LT: { price: 3650.90, volume: 19500000, changePercent: 1.75 },
+  TCS: { price: 2263.90, volume: 2150000, changePercent: -7.70 },
+  INFY: { price: 1083.30, volume: 3890000, changePercent: -7.81 },
+  HDFCBANK: { price: 704.20, volume: 8900000, changePercent: -3.67 },
+  ICICIBANK: { price: 1399.40, volume: 6100000, changePercent: -1.52 },
+  SBIN: { price: 1008.70, volume: 12400000, changePercent: -8.07 },
+  BHARTIARTL: { price: 1838.50, volume: 4300000, changePercent: -6.19 },
+  ITC: { price: 264.20, volume: 15200000, changePercent: -7.65 },
+  KOTAKBANK: { price: 420.50, volume: 2800000, changePercent: 7.61 },
+  LT: { price: 3967.90, volume: 19500000, changePercent: -2.17 },
 };
 
 export class MockMarketDataProvider implements IMarketDataProvider {
